@@ -7,7 +7,9 @@ const InochatLoadingScreen = lazy(() => import('./Pages/Onboarding/Welcome'));
 const LoginScreen = lazy(() => import('./Pages/Onboarding/LoginScreen')); 
 const PhoneVerificationScreen = lazy(() => import('./Pages/Onboarding/PhoneVerification'));
 const OTPVerification = lazy(() => import('./Pages/Onboarding/Otpverification'));
-const Setpassword = lazy(() => import('./Pages/Onboarding/Setpassword'));// adjust path as needed
+const Setpassword = lazy(() => import('./Pages/Onboarding/Setpassword'));
+const Accountcreated= lazy(() => import('./Pages/Onboarding/Accountcreated'));
+const Phoneverficationsignin = lazy(() => import('./Pages/Onboarding/Phoneverficationsignin'));
 
 function App() {
   return (
@@ -16,10 +18,11 @@ function App() {
         <Routes>
           <Route path="/" element={<InochatLoadingScreen />} />
           <Route path="/login" element={<LoginScreen />} />
-           <Route path="/verify/phone" element={<PhoneVerificationScreen />} />
-             <Route path="/verify-otp" element={<OTPVerification />} />
-              <Route path="/set-password" element={<Setpassword />} />
-           
+          <Route path="/verify/phone" element={<PhoneVerificationScreen />} />
+          <Route path="/verify-otp" element={<OTPVerification />} />
+          <Route path="/set-password" element={<Setpassword />} />
+          <Route path="/set-Accountcreated" element={<Accountcreated />} />
+          <Route path="/set-Phoneverficationsignin" element={<Phoneverficationsignin />} />
         </Routes>
       </Suspense>
     </Router>

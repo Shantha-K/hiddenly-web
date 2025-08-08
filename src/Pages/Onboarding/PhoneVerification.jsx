@@ -10,7 +10,7 @@ const PhoneVerificationScreen = () => {
     e.preventDefault();
 
     try {
-      const response = await fetch("http://35.154.10.237:5000/api/sign-in", {
+      const response = await fetch("http://35.154.10.237:5000/api/sign-up", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -24,10 +24,18 @@ const PhoneVerificationScreen = () => {
       const result = await response.json();
 
       if (response.ok) {
-        alert('Verification code sent!');
-        // Optionally store name and phone for OTP screen
+        // TEMP: Show OTP for testing in development
+        if (result.otp) {
+          console.log("DEBUG OTP:", result.otp);
+          alert(`Verification code sent! OTP `);
+        } else {
+          alert("Verification code sent! Check your phone.");
+        }
+
+        // Store for Verify OTP screen
         localStorage.setItem('user_name', name);
         localStorage.setItem('user_phone', phone);
+
         navigate('/verify-otp');
       } else {
         alert(result?.message || 'Something went wrong');
