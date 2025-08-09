@@ -1,11 +1,11 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
-const AccountCreatedScreen = () => {
+const AccountCreated = () => {
   const navigate = useNavigate();
 
   const handleContinue = () => {
-    navigate("/"); // change this to your chat/home route
+    navigate("/WelcomeChat"); // change this to your chat/home route
   };
 
   return (
@@ -38,12 +38,9 @@ const AccountCreatedScreen = () => {
         </button>
       </div>
 
-      {/* Footer */}
-      <p className="text-xs text-gray-500 mt-4">
-        Made with <span className="text-blue-600 font-bold">Yrisily</span>
-      </p>
+     
     </div>
   );
 };
 
-export default AccountCreatedScreen;
+export default AccountCreated;
