@@ -18,6 +18,7 @@ const Phoneverficationsignin = lazy(() => import("./Pages/Onboarding/Phoneverfic
 const WelcomeChat= lazy(() => import("./Pages/Chat/WelcomeChat"));
 const AuthCallback = lazy(() => import("./Pages/Onboarding/AuthCallback"));
 const Contacts = lazy(() => import("./Pages/Chat/Contacts"));
+const ChatWindow = lazy(() => import("./Pages/Chat/ChatWindow"));
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
   <Route path="/set-Phoneverficationsignin" element={<Phoneverficationsignin />} />
   <Route path="/auth/callback" element={<AuthCallback />} />
   <Route path="/Contacts" element={<Contacts />} />
+   <Route path="/chat/:mobile" element={<ChatWindow />} />
 </Routes>
       </Suspense>
     </Router>
