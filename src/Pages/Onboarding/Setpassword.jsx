@@ -44,7 +44,7 @@
 
 //       // 4. Check for QR code in different possible formats
 //       let qrUrl = null;
-      
+
 //       // Case 1: Direct image data (base64)
 //       if (result.data && result.data.startsWith("data:image")) {
 //         qrUrl = result.data;
@@ -64,7 +64,7 @@
 
 //       if (!qrUrl) {
 //         console.warn("Couldn't find QR code in response. Trying alternative approach...");
-        
+
 //         // Alternative approach: Generate QR client-side as fallback
 //         const fallbackUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
 //           qrText || email || "No content provided"
@@ -73,17 +73,17 @@
 //       }
 
 //       setQrImage(qrUrl);
-      
+
 //     } catch (error) {
 //       console.error("API Error Details:", error);
 //       setError(error.message);
-      
+
 //       // Fallback QR generation
 //       const fallbackUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
 //         qrText || email || "Error occurred"
 //       )}`;
 //       setQrImage(fallbackUrl);
-      
+
 //       alert("QR generation failed. Using fallback method.\nError: " + error.message);
 //     } finally {
 //       setLoading(false);
@@ -186,8 +186,7 @@
 //   );
 // };
 
-// export default SetPassword; 
-
+// export default SetPassword;
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -195,7 +194,7 @@ import { gapi } from "gapi-script";
 
 // Your Google OAuth credentials
 const CLIENT_ID = "403492068330-4lp0vvsvl6frhnjk64ff1aqqpo8757qo.apps.googleusercontent.com";
-const API_KEY = "AIzaSyCaUi9Ulf6xNfeYw4DAQ1oj3rSESj-wBKc";
+const API_KEY = "AIzaSyBhUE3CM2nxXHS58HtmvfM2-dE-EVaAsuU";
 const SCOPES = "https://www.googleapis.com/auth/drive.file";
 
 const SetPassword = () => {
@@ -216,7 +215,9 @@ const SetPassword = () => {
           apiKey: API_KEY,
           clientId: CLIENT_ID,
           scope: SCOPES,
-          discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
+          discoveryDocs: [
+            "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest",
+          ],
         })
         .then(() => {
           console.log("Google API initialized");
@@ -226,11 +227,17 @@ const SetPassword = () => {
   }, []);
 
   const handleGoogleSignIn = () => {
-    gapi.auth2.getAuthInstance().signIn().then(() => {
-      const token = gapi.auth2.getAuthInstance().currentUser.get().getAuthResponse().access_token;
-      setAccessToken(token);
-      console.log("Google Drive Access Token:", token);
-    });
+    gapi.auth2
+      .getAuthInstance()
+      .signIn()
+      .then(() => {
+        const token = gapi.auth2
+          .getAuthInstance()
+          .currentUser.get()
+          .getAuthResponse().access_token;
+        setAccessToken(token);
+        console.log("Google Drive Access Token:", token);
+      });
   };
 
   const uploadToGoogleDrive = async (qrUrl) => {
@@ -248,7 +255,10 @@ const SetPassword = () => {
       };
 
       const form = new FormData();
-      form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+      form.append(
+        "metadata",
+        new Blob([JSON.stringify(metadata)], { type: "application/json" })
+      );
       form.append("file", blob);
 
       const uploadRes = await fetch(
@@ -274,18 +284,21 @@ const SetPassword = () => {
     setError(null);
 
     try {
-      const response = await fetch("http://35.154.10.237:5000/api/generate-qr", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization:
-            "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4ZGY5MWFmMC1kOGQzLTRjZTMtOWE2Yi0xMWY5OGU5NjRjMDAiLCJtb2JpbGUiOiI5ODc2NTQzMjIiLCJpYXQiOjE3NTQ1ODM0MjMsImV4cCI6MTc1NTE4ODIyM30.eaD8vWwmY5adVzpVvOQi-wYmBayv3HgawP9KJGBKy6w",
-        },
-        body: JSON.stringify({
-          email: email,
-          qrText: qrText || `QR for ${email}`,
-        }),
-      });
+      const response = await fetch(
+        "http://35.154.10.237:5000/api/generate-qr",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:
+              "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4ZGY5MWFmMC1kOGQzLTRjZTMtOWE2Yi0xMWY5OGU5NjRjMDAiLCJtb2JpbGUiOiI5ODc2NTQzMjIiLCJpYXQiOjE3NTQ1ODM0MjMsImV4cCI6MTc1NTE4ODIyM30.eaD8vWwmY5adVzpVvOQi-wYmBayv3HgawP9KJGBKy6w",
+          },
+          body: JSON.stringify({
+            email: email,
+            qrText: qrText || `QR for ${email}`,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -319,7 +332,6 @@ const SetPassword = () => {
       if (accessToken) {
         await uploadToGoogleDrive(qrUrl);
       }
-
     } catch (error) {
       console.error("API Error Details:", error);
       setError(error.message);
@@ -328,7 +340,9 @@ const SetPassword = () => {
           qrText || email || "Error occurred"
         )}`
       );
-      alert("QR generation failed. Using fallback method.\nError: " + error.message);
+      alert(
+        "QR generation failed. Using fallback method.\nError: " + error.message
+      );
     } finally {
       setLoading(false);
     }
@@ -371,7 +385,9 @@ const SetPassword = () => {
                   Generate Another
                 </button>
                 <button
-                  onClick={() => navigate("/Accountcreated", { state: { qrImage } })}
+                  onClick={() =>
+                    navigate("/Accountcreated", { state: { qrImage } })
+                  }
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-md"
                 >
                   Continue
@@ -381,7 +397,9 @@ const SetPassword = () => {
           ) : (
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div>
-                <label className="block mb-1 font-medium text-sm text-gray-700">Email Address</label>
+                <label className="block mb-1 font-medium text-sm text-gray-700">
+                  Email Address
+                </label>
                 <input
                   type="email"
                   placeholder="your.email@example.com"
@@ -393,7 +411,9 @@ const SetPassword = () => {
               </div>
 
               <div>
-                <label className="block mb-1 font-medium text-sm text-gray-700">QR Code Content</label>
+                <label className="block mb-1 font-medium text-sm text-gray-700">
+                  QR Code Content
+                </label>
                 <input
                   type="text"
                   placeholder="Enter text for QR code"
@@ -419,6 +439,3 @@ const SetPassword = () => {
 };
 
 export default SetPassword;
-
-
-
