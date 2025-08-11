@@ -15,7 +15,7 @@ const InotChatLanding = () => {
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
         {/* Welcome heading */}
         <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white text-center mb-12 tracking-tight">
-          Welcome to InotChat Web
+          Welcome to InoChat Web
         </h1>
         
         {/* Get Started button */}
