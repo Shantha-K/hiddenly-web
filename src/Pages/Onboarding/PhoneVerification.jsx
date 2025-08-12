@@ -235,7 +235,7 @@ const PhoneVerificationScreen = () => {
     try {
       const response = await fetch("http://35.154.10.237:5000/api/sign-up", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mobile: phone,
           name: name,
