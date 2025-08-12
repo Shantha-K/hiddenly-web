@@ -408,7 +408,7 @@ import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 const VerifyOTPScreen = () => {
-  const [otp, setOtp] = useState(["", "", "", ""]); // array for each digit
+  const [otp, setOtp] = useState(["", "", "", "", ]); // array for each digit
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const inputRefs = useRef([]);
