@@ -98,21 +98,109 @@
 
 // export default PhoneVerificationSignIn;
 
+// import React, { useState } from 'react';
+// import { useNavigate } from 'react-router-dom';
 
+// const PhoneVerificationSignIn = () => {
+//   const [phone, setPhone] = useState('');
+//   const [isLoading, setIsLoading] = useState(false);
+//   const navigate = useNavigate();
 
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+//   const handleContinue = async (e) => {
+//     e.preventDefault();
+
+//     if (!phone || phone.length !== 10) {
+//       alert('Please enter a valid 10-digit phone number');
+//       return;
+//     }
+
+//     setIsLoading(true);
+
+//     try {
+//       const response = await fetch("http://35.154.10.237:5000/api/sign-in", {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify({
+//           mobile: phone,
+//           isNewUser: false
+//         })
+//       });
+
+//       const result = await response.json();
+
+//       if (response.ok) {
+//         localStorage.setItem('user_phone', phone);
+//         localStorage.removeItem('is_new_user');
+
+//         // For development testing only
+//         if (process.env.NODE_ENV === 'development' && result.otp) {
+//           console.log("DEBUG OTP:", result.otp);
+//         }
+
+//         navigate('/verify-otp');
+//       } else {
+//         alert(result?.message || 'Login failed');
+//       }
+//     } catch (error) {
+//       console.error('Login error:', error);
+//       alert('Network error during login');
+//     } finally {
+//       setIsLoading(false);
+//     }
+//   };
+
+//   return (
+//     <div className="min-h-screen bg-gradient-to-br from-sky-100 to-blue-50 flex flex-col items-center justify-center px-4">
+//       {/* Logo and Form */}
+//       <div className="w-full max-w-md">
+//         <div className="text-center mb-8">
+//           <h1 className="text-blue-600 text-2xl font-bold">Inochat</h1>
+//         </div>
+
+//         <form onSubmit={handleContinue} className="bg-white p-8 rounded-2xl shadow-md space-y-6">
+//           <h2 className="text-2xl font-semibold text-center">Sign In</h2>
+
+//           {/* Phone Input */}
+//           <div>
+//             <input
+//               type="tel"
+//               placeholder="Phone Number"
+//               value={phone}
+//               onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+//               className="w-full p-3 border rounded-md"
+//               maxLength={10}
+//               required
+//             />
+//           </div>
+
+//           <button
+//             type="submit"
+//             disabled={isLoading}
+//             className="w-full bg-blue-600 text-white p-3 rounded-md disabled:opacity-70"
+//           >
+//             {isLoading ? 'Sending OTP...' : 'Continue'}
+//           </button>
+//         </form>
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default PhoneVerificationSignIn;
+
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const PhoneVerificationSignIn = () => {
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleContinue = async (e) => {
     e.preventDefault();
-    
+
     if (!phone || phone.length !== 10) {
-      alert('Please enter a valid 10-digit phone number');
+      alert("Please enter a valid 10-digit phone number");
       return;
     }
 
@@ -124,28 +212,26 @@ const PhoneVerificationSignIn = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mobile: phone,
-          isNewUser: false
-        })
+          isNewUser: false,
+        }),
       });
 
       const result = await response.json();
 
       if (response.ok) {
-        localStorage.setItem('user_phone', phone);
-        localStorage.removeItem('is_new_user');
-        
-        // For development testing only
-        if (process.env.NODE_ENV === 'development' && result.otp) {
-          console.log("DEBUG OTP:", result.otp);
-        }
-
-        navigate('/verify-otp');
+        localStorage.setItem("user_phone", phone);
+        localStorage.setItem("is_new_user", "false"); // ✅ Mark signin
+        // if (process.env.NODE_ENV === 'development' && result.otp) {
+        //   console.log("DEBUG OTP:", result.otp);
+        // }
+        console.log("otptest", result.otp);
+        navigate("/verify-otp");
       } else {
-        alert(result?.message || 'Login failed');
+        alert(result?.message || "Login failed");
       }
     } catch (error) {
-      console.error('Login error:', error);
-      alert('Network error during login');
+      console.error("Login error:", error);
+      alert("Network error during login");
     } finally {
       setIsLoading(false);
     }
@@ -153,34 +239,34 @@ const PhoneVerificationSignIn = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-100 to-blue-50 flex flex-col items-center justify-center px-4">
-      {/* Logo and Form */}
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-blue-600 text-2xl font-bold">Inochat</h1>
         </div>
-        
-        <form onSubmit={handleContinue} className="bg-white p-8 rounded-2xl shadow-md space-y-6">
+        <form
+          onSubmit={handleContinue}
+          className="bg-white p-8 rounded-2xl shadow-md space-y-6"
+        >
           <h2 className="text-2xl font-semibold text-center">Sign In</h2>
-          
-          {/* Phone Input */}
           <div>
             <input
               type="tel"
               placeholder="Phone Number"
               value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+              onChange={(e) =>
+                setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
+              }
               className="w-full p-3 border rounded-md"
               maxLength={10}
               required
             />
           </div>
-          
           <button
             type="submit"
             disabled={isLoading}
             className="w-full bg-blue-600 text-white p-3 rounded-md disabled:opacity-70"
           >
-            {isLoading ? 'Sending OTP...' : 'Continue'}
+            {isLoading ? "Sending OTP..." : "Continue"}
           </button>
         </form>
       </div>
