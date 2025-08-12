@@ -12,14 +12,14 @@ const ChatWindow = ({ user, onBack }) => {
 
   const fetchChatHistory = async () => {
     try {
-      const myHeaders = new Headers();
-      myHeaders.append("Authorization", token);
+      // const myHeaders = new Headers();
+      // myHeaders.append("Authorization", token);
 
       const res = await fetch(
         `http://35.154.10.237:5000/api/chat/:${user.mobile}`,
         {
           method: "GET",
-          headers: myHeaders,
+          // headers: myHeaders,
           redirect: "follow",
         }
       );
@@ -34,9 +34,9 @@ const ChatWindow = ({ user, onBack }) => {
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
     try {
-      const myHeaders = new Headers();
-      myHeaders.append("Content-Type", "application/json");
-      myHeaders.append("Authorization", token);
+      // const myHeaders = new Headers();
+      // myHeaders.append("Content-Type", "application/json");
+      // myHeaders.append("Authorization", token);
 
       const raw = JSON.stringify({
         receiverMobile: user.mobile,
@@ -46,7 +46,7 @@ const ChatWindow = ({ user, onBack }) => {
 
       await fetch("http://35.154.10.237:5000/api/message", {
         method: "POST",
-        headers: myHeaders,
+        // headers: myHeaders,
         body: raw,
         redirect: "follow",
       });

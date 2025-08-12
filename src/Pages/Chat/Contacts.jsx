@@ -1,14 +1,28 @@
-import React, { useState, useEffect } from "react";
-import { Search, Settings } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Search } from "lucide-react";
+import io from "socket.io-client";
+
+const SOCKET_SERVER = "http://35.154.10.237:5000";
 
 const ChatPage = () => {
+  // Get user details from local storage
+  const userData = JSON.parse(localStorage.getItem("userData")) || {
+    user_phone: "7676045226",
+    user_name: "yugandhar",
+    is_new_user: false,
+  };
+
   const [messages, setMessages] = useState([]);
   const [activeTab, setActiveTab] = useState("Contacts");
   const [selectedUser, setSelectedUser] = useState(null);
   const [chatHistory, setChatHistory] = useState([]);
   const [newMessage, setNewMessage] = useState("");
+  const [chatId, setChatId] = useState(null);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const myMobileNumber = "7283863503";
+  const socketRef = useRef(null);
+  const messagesEndRef = useRef(null);
 
   const avatarColors = {
     green: "#22c55e",
@@ -18,168 +32,237 @@ const ChatPage = () => {
     gray: "#9ca3af",
   };
 
-  const handleTabClick = (tabName) => {
-    setActiveTab(tabName);
-    if (tabName === "Contacts") {
-      fetchContacts();
-    } else {
-      setMessages([]);
-      setSelectedUser(null);
-    }
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatHistory]);
+
+  // Initialize socket
+  useEffect(() => {
+    socketRef.current = io(SOCKET_SERVER, {
+      transports: ["websocket"],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      query: {
+        userId: userData.user_phone,
+        userName: userData.user_name,
+      },
+    });
+
+    socketRef.current.on("connect", () => {
+      console.log("Socket connected:", socketRef.current.id);
+      setSocketConnected(true);
+      socketRef.current.emit("joinUserRoom", userData.user_phone);
+    });
+
+    socketRef.current.on("connect_error", (err) => {
+      console.error("Socket connection error:", err);
+      setSocketConnected(false);
+    });
+
+    socketRef.current.on("disconnect", () => {
+      console.log("Socket disconnected");
+      setSocketConnected(false);
+    });
+
+    socketRef.current.on("newMessage", (msg) => {
+      if (msg.chatId === chatId) {
+        setChatHistory((prev) => [...prev, msg]);
+      }
+    });
+
+    socketRef.current.on("messageReceived", (messageData) => {
+      if (messageData.chatId === chatId) {
+        setChatHistory((prev) => [
+          ...prev,
+          {
+            chatId: messageData.chatId,
+            sender: messageData.senderMobile,
+            receiver: userData.user_phone,
+            content: messageData.content,
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+      }
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, [userData.user_phone, userData.user_name]);
+
+  // Fetch contacts when Contacts tab is active
+  useEffect(() => {
+    if (activeTab === "Contacts") {
+      fetchContacts();
+    }
+  }, [activeTab]);
+
   const fetchContacts = async () => {
+    setIsLoading(true);
     try {
-      const myHeaders = new Headers();
-      myHeaders.append("Content-Type", "application/json");
-
-      const raw = JSON.stringify({
-        mobiles: [
-          "7876556789",
-          "9150541316",
-          "8524930080",
-          "9879797975",
-          "7871941746",
-        ],
-      });
-
-      const requestOptions = {
-        method: "POST",
-        headers: myHeaders,
-        body: raw,
-        redirect: "follow",
-      };
-
-      const response = await fetch(
+      const res = await fetch(
         "http://35.154.10.237:5000/api/contacts/check-exist",
-        requestOptions
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({
+            mobiles: [
+              "7876556789",
+              "9150541316",
+              "8524930080",
+              "9879797975",
+              "7871941746",
+            ],
+            currentUser: userData.user_phone,
+          }),
+        }
       );
 
-      const result = await response.json();
-
-      let transformed = [];
+      const result = await res.json();
+      let contacts = [];
 
       if (result?.users?.length) {
-        transformed = transformed.concat(
-          result.users.map((user) => ({
-            name: user.name || "Unknown",
-            text: user.lastMessage || "No messages yet",
-            color: "green",
-            mobile: user.mobile,
-            unreadCount: user.unreadCount || 0,
-          }))
-        );
+        contacts = result.users.map((user) => ({
+          name: user.name || user.mobile,
+          text: user.lastMessage || "No messages yet",
+          color: "green",
+          mobile: user.mobile,
+          unreadCount: user.unreadCount || 0,
+          chatId: user.chatId,
+        }));
       }
 
       if (result?.notFoundMobiles?.length) {
-        transformed = transformed.concat(
-          result.notFoundMobiles.map((mobile) => ({
+        contacts = [
+          ...contacts,
+          ...result.notFoundMobiles.map((mobile) => ({
             name: mobile,
             text: "Not on the platform",
             color: "gray",
             mobile,
             unreadCount: 0,
-          }))
-        );
+          })),
+        ];
       }
 
-      setMessages(transformed);
+      setMessages(contacts);
     } catch (error) {
       console.error("Error fetching contacts:", error);
-      setMessages([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const fetchChatHistory = async (mobile) => {
+  const createOrGetChatRoom = async (contact) => {
     try {
-      const myHeaders = new Headers();
-      myHeaders.append(
-        "Authorization",
-        "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4OTcyMWI1NzNlYWQ1OWMxMDUxNWYyNSIsIm1vYmlsZSI6IjcyODM4NjM1MDMiLCJuYW1lIjoiU2hhbnRoYSBWZW51Z29wYWxhcGEiLCJpYXQiOjE3NTQ3MzUwNjQsImV4cCI6MTc1NzMyNzA2NH0.W9u_s2J6V68zbwxlkQ2VzWWcu5olQYubcC7mTOesTwg"
-      );
-
-      const requestOptions = {
-        method: "GET",
-        headers: myHeaders,
-        redirect: "follow",
-      };
-
-      const response = await fetch(
-        `http://35.154.10.237:5000/api/chat/${mobile}`,
-        requestOptions
-      );
-
-      const result = await response.json();
-      
-      // Transform the API response to match our expected format
-      if (result?.messages) {
-        const transformedMessages = result.messages.map(msg => ({
-          sender: msg.senderMobile,
-          content: msg.content,
-          createdAt: msg.createdAt
-        }));
-        setChatHistory(transformedMessages);
-      } else {
-        setChatHistory([]);
-      }
-    } catch (error) {
-      console.error("Error fetching chat history:", error);
-      setChatHistory([]);
-    }
-  };
-
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedUser) return;
-
-    try {
-      const myHeaders = new Headers();
-      myHeaders.append("Content-Type", "application/json");
-      myHeaders.append(
-        "Authorization",
-        "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4OTcyMWI1NzNlYWQ1OWMxMDUxNWYyNSIsIm1vYmlsZSI6IjcyODM4NjM1MDMiLCJuYW1lIjoiU2hhbnRoYSBWZW51Z29wYWxhcGEiLCJpYXQiOjE3NTQ3MzUwNjQsImV4cCI6MTc1NzMyNzA2NH0.W9u_s2J6V68zbwxlkQ2VzWWcu5olQYubcC7mTOesTwg"
-      );
-
-      const raw = JSON.stringify({
-        receiverMobile: selectedUser.mobile,
-        messageType: "text",
-        content: newMessage.trim(),
+      const res = await fetch(`http://35.154.10.237:5000/api/chat/start`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({
+          sender: userData.user_phone,
+          receiver: contact.mobile,
+        }),
       });
 
-      const requestOptions = {
-        method: "POST",
-        headers: myHeaders,
-        body: raw,
-        redirect: "follow",
-      };
-
-      const url = "http://35.154.10.237:5000/api/chat/message";
-
-      const res = await fetch(url, requestOptions);
       const result = await res.json();
-
-      if (res.ok) {
-        // Add the new message to chat history using the API response format
-        setChatHistory(prev => [
-          ...prev,
-          {
-            sender: myMobileNumber,
-            content: newMessage.trim(),
-            createdAt: new Date().toISOString()
-          }
-        ]);
-        setNewMessage("");
-        
-        // Update the last message in contacts list
-        setMessages(prev => 
-          prev.map(msg => 
-            msg.mobile === selectedUser.mobile 
-              ? { ...msg, text: newMessage.trim() } 
-              : msg
-          )
-        );
-      } else {
-        console.error("Failed to send message:", result);
+      if (result?.chatId) {
+        setChatId(result.chatId);
+        socketRef.current.emit("joinRoom", {
+          chatId: result.chatId,
+          userId: userData.user_phone,
+        });
+        fetchChatHistory(result.chatId, contact.mobile);
       }
+    } catch (err) {
+      console.error("Error creating chat room:", err);
+    }
+  };
+
+  const fetchChatHistory = async (chatId, mobile) => {
+    try {
+      const res = await fetch(`http://35.154.10.237:5000/api/chat/history`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({
+          chatId: chatId,
+          sender: userData.user_phone,
+          receiver: mobile,
+        }),
+      });
+
+      const result = await res.json();
+      setChatHistory(result?.chathistory || []);
+    } catch (error) {
+      console.error("Error fetching chat history:", error);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedUser) return;
+
+    // Ensure we have chatId before sending
+    let finalChatId = chatId;
+    if (!finalChatId) {
+      await createOrGetChatRoom(selectedUser);
+      finalChatId = chatId;
+    }
+
+    const messageData = {
+      chatId: finalChatId,
+      content: newMessage.trim(),
+      senderMobile: userData.user_phone,
+      senderName: userData.user_name,
+      receiverMobile: selectedUser.mobile,
+    };
+
+    try {
+      // Optimistic UI update
+      setChatHistory((prev) => [
+        ...prev,
+        {
+          chatId: finalChatId,
+          sender: userData.user_phone,
+          receiver: selectedUser.mobile,
+          content: newMessage.trim(),
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+
+      // Emit socket
+      socketRef.current.emit("sendMessage", messageData);
+
+      // Save in backend
+      const res = await fetch(`${SOCKET_SERVER}/api/chat/instant-message`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify(messageData),
+      });
+
+      const saved = await res.json();
+      if (!saved.success) {
+        console.error("Message not saved:", saved.message);
+      }
+
+      setNewMessage("");
     } catch (error) {
       console.error("Error sending message:", error);
     }
@@ -187,18 +270,42 @@ const ChatPage = () => {
 
   const handleContactClick = (contact) => {
     setSelectedUser(contact);
-    fetchChatHistory(contact.mobile);
+    if (contact.chatId) {
+      setChatId(contact.chatId);
+      socketRef.current.emit("joinRoom", {
+        chatId: contact.chatId,
+        userId: userData.user_phone,
+      });
+      fetchChatHistory(contact.chatId, contact.mobile);
+    } else {
+      createOrGetChatRoom(contact);
+    }
   };
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50">
+      {/* Connection status */}
+      <div
+        className={`absolute top-2 right-2 px-3 py-1 rounded-full text-xs ${
+          socketConnected ? "bg-green-500 text-white" : "bg-red-500 text-white"
+        }`}
+      >
+        {socketConnected ? "Connected" : "Disconnected"}
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-white border-b shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xl">
-            IC
+        <div className="flex items-center gap-4">
+          <div
+            className="w-10 h-10 rounded-full text-white flex items-center justify-center font-bold text-xl"
+            style={{ backgroundColor: avatarColors.purple }}
+          >
+            {userData.user_name.charAt(0).toUpperCase()}
           </div>
-          <span className="font-semibold text-xl">Inochat</span>
+          <div>
+            <p className="font-semibold">{userData.user_name}</p>
+            <p className="text-xs text-gray-500">{userData.user_phone}</p>
+          </div>
         </div>
 
         <div className="relative w-1/3">
@@ -216,57 +323,55 @@ const ChatPage = () => {
         {/* Sidebar */}
         <div className="w-1/3 bg-white border-r flex flex-col">
           {/* Tabs */}
-          <p>Messages</p>
           <div className="flex gap-2 p-3 bg-gray-100 justify-center">
             {["Contacts", "Chat", "Status"].map((tab) => (
               <button
                 key={tab}
-                onClick={() => handleTabClick(tab)}
-                className={`py-2 px-6 rounded-full font-semibold text-sm transition-colors duration-200
-                  ${
-                    activeTab === tab && tab === "Contacts"
-                      ? "bg-blue-600 text-white shadow"
-                      : "text-gray-600 hover:bg-blue-100"
-                  }`}
+                onClick={() => setActiveTab(tab)}
+                className={`py-2 px-6 rounded-full font-semibold text-sm ${
+                  activeTab === tab
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 hover:bg-blue-100"
+                }`}
               >
                 {tab}
               </button>
             ))}
           </div>
 
-          {/* Messages list */}
+          {/* Contacts */}
           <div className="overflow-y-auto flex-1">
-            {messages.length > 0 ? (
+            {isLoading ? (
+              <div className="flex justify-center items-center h-full">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : messages.length > 0 ? (
               messages.map((msg, index) => (
                 <div
                   key={index}
                   onClick={() => handleContactClick(msg)}
-                  className="flex items-center gap-3 p-3 cursor-pointer border-b hover:bg-blue-50"
+                  className={`flex items-center gap-3 p-3 cursor-pointer border-b hover:bg-blue-50 ${
+                    selectedUser?.mobile === msg.mobile ? "bg-blue-100" : ""
+                  }`}
                 >
                   <div
                     className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg"
-                    style={{
-                      backgroundColor: avatarColors[msg.color] || "#9ca3af",
-                    }}
+                    style={{ backgroundColor: avatarColors[msg.color] }}
                   >
-                    {msg.name.charAt(0)}
+                    {msg.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-center">
                       <p className="font-semibold truncate">{msg.name}</p>
                       <span className="text-xs text-gray-400">24m ago</span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <p className="text-sm text-gray-500 truncate">
-                        {msg.text}
-                      </p>
-                      {msg.unreadCount > 0 && (
-                        <span className="bg-blue-600 text-white rounded-full text-xs px-2 py-0.5">
-                          {msg.unreadCount}
-                        </span>
-                      )}
-                    </div>
+                    <p className="text-sm text-gray-500 truncate">{msg.text}</p>
                   </div>
+                  {msg.unreadCount > 0 && (
+                    <span className="bg-blue-600 text-white rounded-full text-xs px-2 py-0.5">
+                      {msg.unreadCount}
+                    </span>
+                  )}
                 </div>
               ))
             ) : (
@@ -277,79 +382,101 @@ const ChatPage = () => {
               </p>
             )}
           </div>
-
-          {/* Settings button */}
-          <div className="p-3 border-t bg-white">
-            <button className="p-2 text-gray-700 hover:bg-gray-100 rounded-full">
-              <Settings size={20} />
-            </button>
-          </div>
         </div>
 
         {/* Chat Window */}
         <div className="flex-1 flex flex-col bg-gradient-to-r from-sky-50 to-blue-100">
-          {selectedUser ? (
-            <>
-              <div className="flex-1 overflow-y-auto p-6">
-                <h2 className="text-2xl font-semibold mb-6">
-                  {selectedUser.name}
-                </h2>
-                {chatHistory.length > 0 ? (
-                  chatHistory.map((chat, idx) => (
-                    <div
-                      key={idx}
-                      className={`max-w-xs mb-4 p-3 rounded-lg break-words
-                        ${
-                          chat.sender === myMobileNumber
-                            ? "bg-blue-600 text-white ml-auto"
-                            : "bg-gray-300 text-gray-800"
-                        }`}
-                    >
-                      {chat.content}
-                      <div className="text-xs mt-1 opacity-70">
-                        {new Date(chat.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-gray-500">No messages yet</p>
-                )}
-              </div>
+  {selectedUser ? (
+    <>
+      {/* Header */}
+      <div className="p-4 bg-white border-b flex items-center gap-3">
+        <div
+          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
+          style={{ backgroundColor: avatarColors.green }}
+        >
+          {selectedUser.name.charAt(0).toUpperCase()}
+        </div>
+        <div>
+          <p className="font-semibold">{selectedUser.name}</p>
+          <p className="text-xs text-gray-500">
+            {socketConnected ? "Online" : "Offline"}
+          </p>
+        </div>
+      </div>
 
-              {/* Message input */}
-              <div className="p-4 bg-white border-t flex gap-4">
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type a message..."
-                  className="flex-1 border border-gray-300 rounded-full px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") sendMessage();
-                  }}
-                />
-                <button
-                  onClick={sendMessage}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-full font-semibold hover:bg-blue-700 transition"
-                >
-                  Send
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="flex items-center justify-center flex-1">
-              <div className="text-center text-gray-600 max-w-md px-6">
-                <h2 className="text-2xl font-semibold mb-4">
-                  Welcome to Inochat Web
-                </h2>
-                <p>
-                  Select a conversation from the left panel to view messages or
-                  start a new chat.
-                </p>
+      {/* Scrollable Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {chatHistory.length > 0 ? (
+          chatHistory.map((chat, idx) => (
+            <div
+              key={idx}
+              className={`flex ${
+                chat.sender === userData.user_phone
+                  ? "justify-end"
+                  : "justify-start"
+              }`}
+            >
+              <div
+                className={`max-w-xs p-3 rounded-lg break-words ${
+                  chat.sender === userData.user_phone
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 text-gray-800"
+                }`}
+              >
+                {chat.content}
+                <div className="text-xs mt-1 opacity-70">
+                  {new Date(chat.createdAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </div>
               </div>
             </div>
-          )}
-        </div>
+          ))
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-500">
+              No messages yet. Start the conversation!
+            </p>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Fixed Input at Bottom */}
+      <div className="p-4 bg-white border-t flex gap-4 sticky bottom-0">
+        <input
+          type="text"
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
+          placeholder="Type a message..."
+          className="flex-1 border border-gray-300 rounded-full px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+        />
+        <button
+          onClick={handleSendMessage}
+          disabled={!newMessage.trim()}
+          className="bg-blue-600 text-white px-6 py-3 rounded-full font-semibold hover:bg-blue-700 disabled:bg-blue-400"
+        >
+          Send
+        </button>
+      </div>
+    </>
+  ) : (
+    <div className="flex items-center justify-center flex-1">
+      <div className="text-center text-gray-600 max-w-md px-6">
+        <h2 className="text-2xl font-semibold mb-4">
+          Welcome {userData.user_name}!
+        </h2>
+        <p>
+          Select a contact from the left panel to view messages or start a new
+          chat.
+        </p>
+      </div>
+    </div>
+  )}
+</div>
+
       </div>
     </div>
   );

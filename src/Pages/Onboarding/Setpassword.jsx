@@ -265,7 +265,7 @@ const SetPassword = () => {
         "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
         {
           method: "POST",
-          headers: new Headers({ Authorization: `Bearer ${accessToken}` }),
+          // headers: new Headers({ Authorization: `Bearer ${accessToken}` }),
           body: form,
         }
       );
@@ -288,11 +288,11 @@ const SetPassword = () => {
         "http://35.154.10.237:5000/api/generate-qr",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization:
-              "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4ZGY5MWFmMC1kOGQzLTRjZTMtOWE2Yi0xMWY5OGU5NjRjMDAiLCJtb2JpbGUiOiI5ODc2NTQzMjIiLCJpYXQiOjE3NTQ1ODM0MjMsImV4cCI6MTc1NTE4ODIyM30.eaD8vWwmY5adVzpVvOQi-wYmBayv3HgawP9KJGBKy6w",
-          },
+          // headers: {
+          //   "Content-Type": "application/json",
+          //   Authorization:
+          //     "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4ZGY5MWFmMC1kOGQzLTRjZTMtOWE2Yi0xMWY5OGU5NjRjMDAiLCJtb2JpbGUiOiI5ODc2NTQzMjIiLCJpYXQiOjE3NTQ1ODM0MjMsImV4cCI6MTc1NTE4ODIyM30.eaD8vWwmY5adVzpVvOQi-wYmBayv3HgawP9KJGBKy6w",
+          // },
           body: JSON.stringify({
             email: email,
             qrText: qrText || `QR for ${email}`,
