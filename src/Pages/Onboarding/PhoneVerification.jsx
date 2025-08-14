@@ -235,7 +235,7 @@ const PhoneVerificationScreen = () => {
     try {
       const response = await fetch("http://35.154.10.237:5000/api/sign-up", {
         method: "POST",
-        // headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mobile: phone,
           name: name,
@@ -246,11 +246,16 @@ const PhoneVerificationScreen = () => {
       const result = await response.json();
 
       if (response.ok) {
-        localStorage.setItem("user_name", name);
-        localStorage.setItem("user_phone", phone);
-        localStorage.setItem("is_new_user", "true"); // ✅ Mark signup
         console.log("OTP:", result.otp);
-        navigate("/verify-otp");
+        localStorage.setItem("user_name", name);
+        localStorage.setItem("mobile", phone);
+        navigate("/verify-otp", {
+          state: {
+            user_name: name,
+            user_phone: phone,
+            is_new_user: true,
+          },
+        });
       } else {
         alert(result?.message || "Registration failed");
       }
@@ -261,6 +266,50 @@ const PhoneVerificationScreen = () => {
       setIsLoading(false);
     }
   };
+
+  // const handleContinue = async (e) => {
+  //   e.preventDefault();
+
+  //   if (!name || name.length < 3) {
+  //     alert("Please enter a valid name (at least 3 characters)");
+  //     return;
+  //   }
+  //   if (!phone || phone.length !== 10) {
+  //     alert("Please enter a valid 10-digit phone number");
+  //     return;
+  //   }
+
+  //   setIsLoading(true);
+
+  //   try {
+  //     const response = await fetch("http://35.154.10.237:5000/api/sign-up", {
+  //       method: "POST",
+  //       // headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({
+  //         mobile: phone,
+  //         name: name,
+  //         isNewUser: true,
+  //       }),
+  //     });
+
+  //     const result = await response.json();
+
+  //     if (response.ok) {
+  //       localStorage.setItem("user_name", name);
+  //       localStorage.setItem("user_phone", phone);
+  //       localStorage.setItem("is_new_user", "true"); // ✅ Mark signup
+  //       console.log("OTP:", result.otp);
+  //       navigate("/verify-otp");
+  //     } else {
+  //       alert(result?.message || "Registration failed");
+  //     }
+  //   } catch (error) {
+  //     console.error("Signup error:", error);
+  //     alert("Network error during signup");
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-100 to-blue-50 flex flex-col items-center justify-center px-4">
