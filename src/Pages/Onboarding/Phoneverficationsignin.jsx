@@ -196,46 +196,96 @@ const PhoneVerificationSignIn = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleContinue = async (e) => {
-    e.preventDefault();
 
-    if (!phone || phone.length !== 10) {
-      alert("Please enter a valid 10-digit phone number");
-      return;
-    }
+ 
 
-    setIsLoading(true);
+const handleContinue = async (e) => {
+  e.preventDefault();
 
-    try {
-      const response = await fetch("http://35.154.10.237:5000/api/sign-in", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mobile: phone,
-          isNewUser: false,
-        }),
+  if (!phone || phone.length !== 10) {
+    alert("Please enter a valid 10-digit phone number");
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    const response = await fetch("http://35.154.10.237:5000/api/sign-in", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mobile: phone,
+        isNewUser: false,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (response.ok) {
+      console.log("otptest", result.otp);
+      localStorage.setItem("mobile", phone);
+    
+      localStorage.setItem("is_new_user", false); // ✅ Mark signin
+
+      navigate("/verify-otp", {
+        state: {
+          user_phone: phone,
+          is_new_user: false,
+          otp: result.otp, // optional: pass OTP for debug/dev
+        },
       });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        localStorage.setItem("user_phone", phone);
-        localStorage.setItem("is_new_user", "false"); // ✅ Mark signin
-        // if (process.env.NODE_ENV === 'development' && result.otp) {
-        //   console.log("DEBUG OTP:", result.otp);
-        // }
-        console.log("otptest", result.otp);
-        navigate("/verify-otp");
-      } else {
-        alert(result?.message || "Login failed");
-      }
-    } catch (error) {
-      console.error("Login error:", error);
-      alert("Network error during login");
-    } finally {
-      setIsLoading(false);
+    } else {
+      alert(result?.message || "Login failed");
     }
-  };
+  } catch (error) {
+    console.error("Login error:", error);
+    alert("Network error during login");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+
+  // const handleContinue = async (e) => {
+  //   e.preventDefault();
+
+  //   if (!phone || phone.length !== 10) {
+  //     alert("Please enter a valid 10-digit phone number");
+  //     return;
+  //   }
+
+  //   setIsLoading(true);
+
+  //   try {
+  //     const response = await fetch("http://35.154.10.237:5000/api/sign-in", {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({
+  //         mobile: phone,
+  //         isNewUser: false,
+  //       }),
+  //     });
+
+  //     const result = await response.json();
+
+  //     if (response.ok) {
+  //       localStorage.setItem("user_phone", phone);
+  //       localStorage.setItem("is_new_user", "false"); // ✅ Mark signin
+  //       // if (process.env.NODE_ENV === 'development' && result.otp) {
+  //       //   console.log("DEBUG OTP:", result.otp);
+  //       // }
+  //       console.log("otptest", result.otp);
+  //       navigate("/verify-otp");
+  //     } else {
+  //       alert(result?.message || "Login failed");
+  //     }
+  //   } catch (error) {
+  //     console.error("Login error:", error);
+  //     alert("Network error during login");
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-100 to-blue-50 flex flex-col items-center justify-center px-4">
