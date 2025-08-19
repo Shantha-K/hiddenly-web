@@ -38,12 +38,12 @@ const InochatLoadingScreen = () => {
       >
         Sign In
       </button>
-          <button
+          {/* <button
             onClick={handleSignUp}
             className="bg-transparent hover:bg-blue-50 text-blue-500 border-2 border-blue-500 px-8 py-3 rounded-full text-lg font-medium transition-colors duration-200"
           >
             Sign Up
-          </button>
+          </button> */}
         </div>
       </div>
 
