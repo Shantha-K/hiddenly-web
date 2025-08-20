@@ -19,6 +19,8 @@ const WelcomeChat= lazy(() => import("./Pages/Chat/WelcomeChat"));
 const AuthCallback = lazy(() => import("./Pages/Onboarding/AuthCallback"));
 const Contacts = lazy(() => import("./Pages/Chat/Contacts"));
 const ChatWindow = lazy(() => import("./Pages/Chat/ChatWindow"));
+const GroupContcats = lazy(() => import("./Pages/Chat/GroupContcats"));
+
 
 function App() {
   return (
@@ -37,6 +39,8 @@ function App() {
   <Route path="/auth/callback" element={<AuthCallback />} />
   <Route path="/Contacts" element={<Contacts />} />
    <Route path="/chat/:mobile" element={<ChatWindow />} />
+     <Route path="/GroupContcats" element={<GroupContcats />} />
+   
 </Routes>
       </Suspense>
     </Router>

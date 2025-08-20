@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Search, Settings, PlusCircle } from "lucide-react";
+import { Search, Settings, PlusCircle, Plus } from "lucide-react";
 import io from "socket.io-client";
 
-const SOCKET_SERVER = "http://35.154.10.237:3000";
+const SOCKET_SERVER = "http://35.154.10.237:6000";
 
 const ChatPage = () => {
   const navigate = useNavigate();
@@ -21,6 +21,12 @@ const ChatPage = () => {
   const [groupName, setGroupName] = useState("");
   const [selectedContacts, setSelectedContacts] = useState([]);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [autoDelete, setAutoDelete] = useState(false);
+  const [autoDeleteAt, setAutoDeleteAt] = useState("2025-08-31T12:00:00.000Z");
+  const [contentTypes, setContentTypes] = useState([
+    "text", "documents", "media", "attachments"
+  ]);
+  const [allContacts, setAllContacts] = useState([]);
 
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -125,7 +131,7 @@ const ChatPage = () => {
     setIsLoading(true);
     try {
       const response = await fetch("http://35.154.10.237:5000/api/getAllUser", {
-        method: "GET",
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
@@ -136,17 +142,20 @@ const ChatPage = () => {
 
       let contacts = [];
       if (result?.users?.length) {
-        contacts = result.users.map((user) => ({
-          name: user.name || user.mobile,
-          text: "Available on the platform",
-          color: "green",
-          mobile: user.mobile,
-          unreadCount: 0,
-          chatId: null,
-        }));
+        contacts = result.users
+          .filter(user => user.mobile !== userData.user_phone) // Filter out current user
+          .map((user) => ({
+            name: user.name || user.mobile,
+            text: "Available on the platform",
+            color: "green",
+            mobile: user.mobile,
+            unreadCount: 0,
+            chatId: null,
+          }));
       }
 
       setMessages(contacts);
+      setAllContacts(contacts); // Store contacts for group creation modal
     } catch (error) {
       console.error("Error fetching contacts:", error);
     } finally {
@@ -322,6 +331,14 @@ const ChatPage = () => {
     );
   };
 
+  const handleContentTypeChange = (type) => {
+    setContentTypes((prev) =>
+      prev.includes(type)
+        ? prev.filter((t) => t !== type)
+        : [...prev, type]
+    );
+  };
+
   const createNewGroup = async () => {
     if (!groupName.trim() || selectedContacts.length === 0) return;
 
@@ -338,13 +355,22 @@ const ChatPage = () => {
         participants.push(userData.user_phone);
       }
 
+      // Map content types to API format
+      const apiContentTypes = [];
+      if (contentTypes.includes("text")) apiContentTypes.push("text");
+      if (contentTypes.includes("documents")) apiContentTypes.push("documents");
+      if (contentTypes.includes("media")) apiContentTypes.push("media");
+      if (contentTypes.includes("attachments")) apiContentTypes.push("attachments");
+
       const raw = JSON.stringify({
         title: groupName.trim(),
         participants: participants,
-        autoDelete: false,
-        autoDeleteAt: "2025-08-31T12:00:00.000Z",
-        contentTypes: ["text"],
+        autoDelete: autoDelete,
+        autoDeleteAt: autoDelete ? autoDeleteAt : "2025-08-31T12:00:00.000Z",
+        contentTypes: apiContentTypes.length > 0 ? apiContentTypes : ["text"]
       });
+
+      console.log("Sending group creation request:", raw);
 
       const response = await fetch(
         "http://35.154.10.237:5000/api/group/Creategroup",
@@ -365,6 +391,8 @@ const ChatPage = () => {
         setShowNewGroupModal(false);
         setGroupName("");
         setSelectedContacts([]);
+        setAutoDelete(false);
+        setContentTypes(["text", "documents", "media", "attachments"]);
 
         // Refresh the chat list to show the new group
         fetchChatList();
@@ -377,6 +405,16 @@ const ChatPage = () => {
     } finally {
       setIsCreatingGroup(false);
     }
+  };
+
+  // Function to handle Plus button click
+  const handlePlusButtonClick = () => {
+    // Make sure we have contacts loaded
+    if (activeTab !== "Contacts") {
+      setActiveTab("Contacts");
+      fetchContacts();
+    }
+    setShowNewGroupModal(true);
   };
 
   return (
@@ -405,102 +443,212 @@ const ChatPage = () => {
           <Search className="absolute left-3 top-2.5 text-gray-400" size={20} />
         </div>
 
-        {/* Settings Button */}
-        <div className="relative" ref={settingsDropdownRef}>
-          <button
-            onClick={() => setShowSettingsDropdown(!showSettingsDropdown)}
-            className="p-2 rounded-full hover:bg-gray-100"
+        {/* Plus Button and Settings Button */}
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={handlePlusButtonClick}
+            className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors"
           >
-            <Settings className="text-gray-600" size={24} />
+            <Plus className="w-4 h-4 text-white" />
           </button>
 
-          {/* Dropdown Menu */}
-          {showSettingsDropdown && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
-              <div
-                className="py-1"
-                role="menu"
-                aria-orientation="vertical"
-                aria-labelledby="options-menu"
-              >
-                <button
-                  onClick={() => {
-                    setShowNewGroupModal(true);
-                    setShowSettingsDropdown(false);
-                  }}
-                  className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                  role="menuitem"
+          {/* Settings Button */}
+          <div className="relative" ref={settingsDropdownRef}>
+            <button
+              onClick={() => setShowSettingsDropdown(!showSettingsDropdown)}
+              className="p-2 rounded-full hover:bg-gray-100"
+            >
+              <Settings className="text-gray-600" size={24} />
+            </button>
+
+            {/* Dropdown Menu */}
+            {showSettingsDropdown && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
+                <div
+                  className="py-1"
+                  role="menu"
+                  aria-orientation="vertical"
+                  aria-labelledby="options-menu"
                 >
-                  <PlusCircle className="mr-2" size={16} />
-                  New Group
-                </button>
-                <button
-                  onClick={() => {
-                    navigate("/settings");
-                    setShowSettingsDropdown(false);
-                  }}
-                  className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                  role="menuitem"
-                >
-                  <Settings className="mr-2" size={16} />
-                  Settings
-                </button>
+                  <button
+                    onClick={() => {
+                      navigate("/settings");
+                      setShowSettingsDropdown(false);
+                    }}
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                    role="menuitem"
+                  >
+                    <Settings className="mr-2" size={16} />
+                    Settings
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
       {/* New Group Modal */}
       {showNewGroupModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
-            <h2 className="text-xl font-semibold mb-4">Create New Group</h2>
-            <input
-              type="text"
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
-              placeholder="Group name"
-              className="w-full p-2 border rounded mb-4"
-            />
-            <div className="max-h-60 overflow-y-auto mb-4">
-              <h3 className="font-medium mb-2">Select Contacts</h3>
-              {messages
-                .filter((contact) => contact.color !== "gray")
-                .map((contact) => (
-                  <div
-                    key={contact.mobile}
-                    className="flex items-center p-2 hover:bg-gray-100 rounded cursor-pointer"
-                    onClick={() => toggleContactSelection(contact)}
-                  >
+          <div className="bg-white rounded-lg p-6 w-[500px] max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-semibold mb-6 text-center">New Group</h2>
+            
+            {/* Search input */}
+            <div className="relative mb-6">
+              <input
+                type="text"
+                placeholder="Search chats or contacts..."
+                className="w-full p-3 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <Search className="absolute left-3 top-3.5 text-gray-400" size={18} />
+            </div>
+            
+            {/* Group Details */}
+            <div className="mb-6">
+              <h3 className="font-medium mb-3 text-gray-700">Group Details</h3>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-600 mb-1">
+                  Group Name
+                </label>
+                <input
+                  type="text"
+                  value={groupName}
+                  onChange={(e) => setGroupName(e.target.value)}
+                  placeholder="Marketing Campaign Update"
+                  className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">
+                  Selected Participants
+                </label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {selectedContacts.length > 0 ? (
+                    selectedContacts.map(contact => (
+                      <div key={contact.mobile} className="bg-blue-100 text-blue-800 px-3 py-1.5 rounded-full text-sm flex items-center">
+                        {contact.name}
+                        <button 
+                          onClick={() => toggleContactSelection(contact)}
+                          className="ml-1.5 text-blue-600 hover:text-blue-800 text-lg"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex items-center justify-center w-8 h-8 bg-gray-100 rounded-full">
+                      <Plus className="w-5 h-5 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="border-t border-b border-gray-200 py-6 mb-6">
+              {/* Auto-Deletion Settings */}
+              <div className="mb-6">
+                <h3 className="font-medium mb-3 text-gray-700">Auto-Deletion Settings</h3>
+                
+                <div className="flex items-center mb-2">
+                  <input
+                    type="checkbox"
+                    id="timeBasedDeletion"
+                    checked={autoDelete}
+                    onChange={(e) => setAutoDelete(e.target.checked)}
+                    className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="timeBasedDeletion" className="text-gray-700">
+                    Time-based Deletion
+                  </label>
+                </div>
+                
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="manualDeletion"
+                    checked={!autoDelete}
+                    onChange={(e) => setAutoDelete(!e.target.checked)}
+                    className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="manualDeletion" className="text-gray-700">
+                    Manual Deletion
+                  </label>
+                </div>
+              </div>
+              
+              {/* Content Filtering */}
+              <div>
+                <h3 className="font-medium mb-3 text-gray-700">Content Filtering</h3>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={selectedContacts.some(
-                        (c) => c.mobile === contact.mobile
-                      )}
-                      readOnly
-                      className="mr-2"
+                      id="textMessages"
+                      checked={contentTypes.includes("text")}
+                      onChange={() => handleContentTypeChange("text")}
+                      className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm mr-2"
-                      style={{ backgroundColor: avatarColors[contact.color] }}
-                    >
-                      {contact.name.charAt(0).toUpperCase()}
-                    </div>
-                    <span>{contact.name}</span>
+                    <label htmlFor="textMessages" className="text-gray-700 text-sm">
+                      Text Messages
+                    </label>
                   </div>
-                ))}
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="documents"
+                      checked={contentTypes.includes("documents")}
+                      onChange={() => handleContentTypeChange("documents")}
+                      className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="documents" className="text-gray-700 text-sm">
+                      Documents (PDFs, Docs)
+                    </label>
+                  </div>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="media"
+                      checked={contentTypes.includes("media")}
+                      onChange={() => handleContentTypeChange("media")}
+                      className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="media" className="text-gray-700 text-sm">
+                      Media (Photos, Videos)
+                    </label>
+                  </div>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="attachments"
+                      checked={contentTypes.includes("attachments")}
+                      onChange={() => handleContentTypeChange("attachments")}
+                      className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="attachments" className="text-gray-700 text-sm">
+                      Other Attachments
+                    </label>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="flex justify-end gap-2">
-              <button
+            
+            {/* Action buttons */}
+            <div className="flex justify-between items-center">
+              <button 
                 onClick={() => {
                   setShowNewGroupModal(false);
                   setGroupName("");
                   setSelectedContacts([]);
+                  setAutoDelete(false);
+                  setContentTypes(["text", "documents", "media", "attachments"]);
                 }}
-                className="px-4 py-2 border rounded hover:bg-gray-100"
+                className="text-gray-500 font-medium hover:text-gray-700"
               >
-                Cancel
+                Discard
               </button>
               <button
                 onClick={createNewGroup}
@@ -509,7 +657,7 @@ const ChatPage = () => {
                   selectedContacts.length === 0 ||
                   isCreatingGroup
                 }
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-blue-400 flex items-center justify-center"
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 font-medium flex items-center justify-center"
               >
                 {isCreatingGroup ? (
                   <>
@@ -517,10 +665,60 @@ const ChatPage = () => {
                     Creating...
                   </>
                 ) : (
-                  "Create"
+                  "Create group"
                 )}
               </button>
             </div>
+            
+            {/* Contacts List */}
+            <div className="mt-6">
+              <h3 className="font-medium mb-3 text-gray-700">Select Contacts</h3>
+              <div className="max-h-60 overflow-y-auto border rounded-lg">
+                {allContacts.length > 0 ? (
+                  allContacts.map((contact) => (
+                    <div
+                      key={contact.mobile}
+                      className={`flex items-center p-3 hover:bg-gray-50 cursor-pointer border-b ${
+                        selectedContacts.some(c => c.mobile === contact.mobile) ? 'bg-blue-50' : ''
+                      }`}
+                      onClick={() => toggleContactSelection(contact)}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedContacts.some(c => c.mobile === contact.mobile)}
+                        readOnly
+                        className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <div
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg mr-3"
+                        style={{ backgroundColor: avatarColors[contact.color] }}
+                      >
+                        {contact.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-medium">{contact.name}</p>
+                        <p className="text-sm text-gray-500">{contact.mobile}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-gray-500">
+                    No contacts available.{" "}
+                    <button 
+                      onClick={fetchContacts}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      Load contacts
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Footer note */}
+            {/* <div className="mt-6 text-center text-xs text-gray-500">
+              Made with <span className="font-semibold">Tisily</span>
+            </div> */}
           </div>
         </div>
       )}
