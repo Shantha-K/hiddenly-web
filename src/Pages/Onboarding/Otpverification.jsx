@@ -1,3 +1,5 @@
+
+
 import React, { useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -9,9 +11,8 @@ const VerifyOTPScreen = () => {
   const inputRefs = useRef([]);
 
   // Extract data from navigation state
-  const { user_phone, is_new_user } = location.state || {};
+  const { user_phone, is_new_user, otp: backendOtp } = location.state || {};
 
-  // Prevent direct page access without state
   if (!user_phone) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -116,6 +117,13 @@ const VerifyOTPScreen = () => {
             ))}
           </div>
 
+          {/* 👀 Show backend OTP for manual entry */}
+          {backendOtp && (
+            <p className="text-center text-xs text-gray-400">
+              Your OTP  {backendOtp}
+            </p>
+          )}
+
           <button
             type="submit"
             disabled={isLoading}
@@ -130,6 +138,145 @@ const VerifyOTPScreen = () => {
 };
 
 export default VerifyOTPScreen;
+
+
+
+
+
+
+
+// import React, { useState, useRef } from "react";
+// import { useNavigate, useLocation } from "react-router-dom";
+
+// const VerifyOTPScreen = () => {
+//   const [otp, setOtp] = useState(["", "", "", ""]); // 4-digit OTP
+//   const [isLoading, setIsLoading] = useState(false);
+//   const navigate = useNavigate();
+//   const location = useLocation();
+//   const inputRefs = useRef([]);
+
+//   // Extract data from navigation state
+//   const { user_phone, is_new_user } = location.state || {};
+
+//   // Prevent direct page access without state
+//   if (!user_phone) {
+//     return (
+//       <div className="min-h-screen flex items-center justify-center">
+//         <div className="text-center">
+//           <p className="mb-4">Invalid access. Please start from login or signup.</p>
+//           <button
+//             onClick={() => navigate("/")}
+//             className="bg-blue-600 text-white px-4 py-2 rounded"
+//           >
+//             Go Back
+//           </button>
+//         </div>
+//       </div>
+//     );
+//   }
+
+//   const handleChange = (value, index) => {
+//     if (/^\d*$/.test(value)) {
+//       const newOtp = [...otp];
+//       newOtp[index] = value.slice(-1);
+//       setOtp(newOtp);
+
+//       if (value && index < otp.length - 1) {
+//         inputRefs.current[index + 1]?.focus();
+//       }
+//     }
+//   };
+
+//   const handleKeyDown = (e, index) => {
+//     if (e.key === "Backspace" && !otp[index] && index > 0) {
+//       inputRefs.current[index - 1]?.focus();
+//     }
+//   };
+
+//   const handleVerify = async (e) => {
+//     e.preventDefault();
+
+//     const otpValue = otp.join("");
+
+//     if (!otpValue || otpValue.length !== 4) {
+//       alert("Please enter a valid 4-digit OTP");
+//       return;
+//     }
+
+//     setIsLoading(true);
+
+//     try {
+//       const response = await fetch("http://35.154.10.237:5000/api/verify-otp", {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify({ mobile: user_phone, otp: otpValue }),
+//       });
+
+//       const result = await response.json();
+
+//       if (response.ok) {
+//         localStorage.setItem("mobile", user_phone);
+//         localStorage.setItem("is_new_user", is_new_user);
+//         if (is_new_user) {
+//           navigate("/set-password");
+//         } else {
+//           navigate("/contacts");
+//         }
+//       } else {
+//         alert(result?.message || "OTP verification failed");
+//       }
+//     } catch (error) {
+//       console.error("OTP verification error:", error);
+//       alert("Network error during OTP verification");
+//     } finally {
+//       setIsLoading(false);
+//     }
+//   };
+
+//   return (
+//     <div className="min-h-screen bg-gradient-to-br from-sky-100 to-blue-50 flex flex-col items-center justify-center px-4">
+//       <div className="w-full max-w-md">
+//         <div className="text-center mb-8">
+//           <h1 className="text-blue-600 text-2xl font-bold">Inochat</h1>
+//         </div>
+//         <form
+//           onSubmit={handleVerify}
+//           className="bg-white p-8 rounded-2xl shadow-md space-y-6"
+//         >
+//           <h2 className="text-2xl font-semibold text-center">Verify OTP</h2>
+//           <p className="text-center text-gray-600 text-sm">
+//             OTP sent to {user_phone}
+//           </p>
+
+//           <div className="flex justify-center gap-3">
+//             {otp.map((digit, index) => (
+//               <input
+//                 key={index}
+//                 type="text"
+//                 value={digit}
+//                 onChange={(e) => handleChange(e.target.value, index)}
+//                 onKeyDown={(e) => handleKeyDown(e, index)}
+//                 maxLength={1}
+//                 ref={(el) => (inputRefs.current[index] = el)}
+//                 className="w-12 h-12 border rounded-md text-center text-lg focus:border-blue-500 focus:outline-none"
+//               />
+//             ))}
+//           </div>
+
+//           <button
+//             type="submit"
+//             disabled={isLoading}
+//             className="w-full bg-blue-600 text-white p-3 rounded-md disabled:opacity-70"
+//           >
+//             {isLoading ? "Verifying..." : "Verify OTP"}
+//           </button>
+//         </form>
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default VerifyOTPScreen;
 
 
 
