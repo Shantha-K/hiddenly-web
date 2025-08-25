@@ -24,9 +24,13 @@
 //   const [autoDelete, setAutoDelete] = useState(false);
 //   const [autoDeleteAt, setAutoDeleteAt] = useState("2025-08-31T12:00:00.000Z");
 //   const [contentTypes, setContentTypes] = useState([
-//     "text", "documents", "media", "attachments"
+//     "text",
+//     "documents",
+//     "media",
+//     "attachments",
 //   ]);
 //   const [allContacts, setAllContacts] = useState([]);
+//   const [chatType, setChatType] = useState("individual"); // 'individual' or 'group'
 
 //   const socketRef = useRef(null);
 //   const messagesEndRef = useRef(null);
@@ -43,6 +47,7 @@
 //     yellow: "#eab308",
 //     purple: "#a855f7",
 //     gray: "#9ca3af",
+//     blue: "#3b82f6",
 //   };
 
 //   const scrollToBottom = () => {
@@ -50,43 +55,20 @@
 //   };
 
 //   useEffect(() => {
-//     scrollToBottom();
-//   }, [chatHistory]);
-
-//   // Close dropdown when clicking outside
-//   useEffect(() => {
-//     const handleClickOutside = (event) => {
-//       if (
-//         settingsDropdownRef.current &&
-//         !settingsDropdownRef.current.contains(event.target)
-//       ) {
-//         setShowSettingsDropdown(false);
-//       }
-//     };
-
-//     document.addEventListener("mousedown", handleClickOutside);
-//     return () => {
-//       document.removeEventListener("mousedown", handleClickOutside);
-//     };
-//   }, []);
-
-//   // Initialize socket
-//   useEffect(() => {
 //     socketRef.current = io(SOCKET_SERVER, {
 //       transports: ["websocket"],
 //       reconnection: true,
 //       reconnectionAttempts: 5,
 //       reconnectionDelay: 1000,
 //       query: {
-//         userId: userData.user_phone,
-//         userName: "yugandhar",
+//         callerId: userData.user_phone,
 //       },
 //     });
 
 //     socketRef.current.on("connect", () => {
 //       console.log("Socket connected:", socketRef.current.id);
 //       setSocketConnected(true);
-//       socketRef.current.emit("joinUserRoom", userData.user_phone);
+//       socketRef.current.emit("joinRoom", chatId);
 //     });
 
 //     socketRef.current.on("connect_error", (err) => {
@@ -99,24 +81,17 @@
 //       setSocketConnected(false);
 //     });
 
-//     socketRef.current.on("newMessage", (msg) => {
-//       if (msg.chatId === chatId) {
+//     // Listen for individual messages
+//     socketRef.current.on("chatMessage", (msg) => {
+//       if (msg.chatId === chatId && msg.senderMobile !== userData.user_phone) {
 //         setChatHistory((prev) => [...prev, msg]);
 //       }
 //     });
 
-//     socketRef.current.on("messageReceived", (messageData) => {
-//       if (messageData.chatId === chatId) {
-//         setChatHistory((prev) => [
-//           ...prev,
-//           {
-//             chatId: messageData.chatId,
-//             sender: messageData.senderMobile,
-//             receiver: userData.user_phone,
-//             content: messageData.content,
-//             createdAt: new Date().toISOString(),
-//           },
-//         ]);
+//     // Listen for group messages
+//     socketRef.current.on("groupMessage", (msg) => {
+//       if (msg.groupId === selectedUser?.id) {
+//         setChatHistory((prev) => [...prev, msg]);
 //       }
 //     });
 
@@ -125,7 +100,7 @@
 //         socketRef.current.disconnect();
 //       }
 //     };
-//   }, [userData.user_phone]);
+//   }, [userData.user_phone, chatId, selectedUser]);
 
 //   const fetchContacts = async () => {
 //     setIsLoading(true);
@@ -143,7 +118,7 @@
 //       let contacts = [];
 //       if (result?.users?.length) {
 //         contacts = result.users
-//           .filter(user => user.mobile !== userData.user_phone) // Filter out current user
+//           .filter((user) => user.mobile !== userData.user_phone) // Filter out current user
 //           .map((user) => ({
 //             name: user.name || user.mobile,
 //             text: "Available on the platform",
@@ -151,6 +126,7 @@
 //             mobile: user.mobile,
 //             unreadCount: 0,
 //             chatId: null,
+//             type: "individual",
 //           }));
 //       }
 
@@ -164,107 +140,65 @@
 //   };
 
 //   const fetchChatList = async () => {
-//   setIsLoading(true);
-//   try {
-//     const myHeaders = new Headers();
-//     myHeaders.append("Content-Type", "application/json");
+//     setIsLoading(true);
+//     try {
+//       const myHeaders = new Headers();
+//       myHeaders.append("Content-Type", "application/json");
 
-//     const raw = JSON.stringify({
-//       mobile: userData.user_phone || "",
-//     });
+//       const raw = JSON.stringify({
+//         mobile: userData.user_phone || "",
+//       });
 
-//     const response = await fetch("http://35.154.10.237:5000/api/chats", {
-//       method: "POST",
-//       headers: myHeaders,
-//       body: raw,
-//       redirect: "follow",
-//     });
+//       const response = await fetch("http://35.154.10.237:5000/api/chats", {
+//         method: "POST",
+//         headers: myHeaders,
+//         body: raw,
+//         redirect: "follow",
+//       });
 
-//     const result = await response.json();
-//     console.log("Chats API Response:", result);
+//       const result = await response.json();
+//       console.log("Chats API Response:", result);
 
-//     let allChats = [];
+//       let allChats = [];
 
-//     // ✅ Handle user chats
-//     if (result?.chats?.length) {
-//       const userChats = result.chats.map((chat) => ({
-//         id: chat.chatId || chat._id, // unique id
-//         name: chat.name || chat.contactMobile || "Unknown",
-//         text:
-//           typeof chat.lastMessage === "object"
-//             ? chat.lastMessage.content
-//             : chat.lastMessage || "No messages yet",
-//         color: "green",
-//         type: "chat", // mark as personal chat
-//         mobile: chat.mobile || "N/A",
-//         // unreadCount: chat.unreadCount || 0,
-//       }));
-//       allChats = [...allChats, ...userChats];
+//       // ✅ Handle user chats
+//       if (result?.chats?.length) {
+//         const userChats = result.chats.map((chat) => ({
+//           id: chat.chatId || chat._id, // unique id
+//           name: chat.name || chat.contactMobile || "Unknown",
+//           text:
+//             typeof chat.lastMessage === "object"
+//               ? chat.lastMessage.content
+//               : chat.lastMessage || "No messages yet",
+//           color: "green",
+//           type: "individual", // mark as personal chat
+//           mobile: chat.mobile || "N/A",
+//           // unreadCount: chat.unreadCount || 0,
+//         }));
+//         allChats = [...allChats, ...userChats];
+//       }
+
+//       // ✅ Handle group chats
+//       if (result?.groups?.length) {
+//         const groupChats = result.groups.map((group) => ({
+//           id: group._id,
+//           name: group.title || "Unnamed Group",
+//           text: group.lastMessage?.content || "Group chat",
+//           color: "blue",
+//           type: "group", // mark as group chat
+//           participants: group.participants || [],
+//           unreadCount: 0, // placeholder (update if API provides)
+//         }));
+//         allChats = [...allChats, ...groupChats];
+//       }
+
+//       setMessages(allChats);
+//     } catch (error) {
+//       console.error("Error fetching chat list:", error);
+//     } finally {
+//       setIsLoading(false);
 //     }
-
-//     // ✅ Handle group chats
-//     if (result?.groups?.length) {
-//       const groupChats = result.groups.map((group) => ({
-//         id: group._id,
-//         name: group.title || "Unnamed Group",
-//         text: "Group chat", // you can later replace with last message if backend supports
-//         color: "blue",
-//         type: "group", // mark as group chat
-//         participants: group.participants || [],
-//         unreadCount: 0, // placeholder (update if API provides)
-//       }));
-//       allChats = [...allChats, ...groupChats];
-//     }
-
-//     setMessages(allChats);
-//   } catch (error) {
-//     console.error("Error fetching chat list:", error);
-//   } finally {
-//     setIsLoading(false);
-//   }
-// };
-
-//   // const fetchChatList = async () => {
-//   //   setIsLoading(true);
-//   //   try {
-//   //     const myHeaders = new Headers();
-//   //     myHeaders.append("Content-Type", "application/json");
-
-//   //     const raw = JSON.stringify({
-//   //       mobile: userData.user_phone || "",
-//   //     });
-
-//   //     const response = await fetch("http://35.154.10.237:5000/api/chats", {
-//   //       method: "POST",
-//   //       headers: myHeaders,
-//   //       body: raw,
-//   //       redirect: "follow",
-//   //     });
-
-//   //     const result = await response.json();
-//   //     console.log("Chats API Response:", result);
-
-//   //     if (result?.chats?.length) {
-//   //       const chatMessages = result.chats.map((chat) => ({
-//   //         name: chat.name || chat.contactMobile || "Unknown",
-//   //         text:
-//   //           typeof chat.lastMessage === "object"
-//   //             ? chat.lastMessage.content
-//   //             : chat.lastMessage || "No messages yet",
-//   //         color: "green",
-//   //         mobile: chat.mobile || "N/A",
-//   //         chatId: chat.chatId,
-//   //       }));
-//   //       setMessages(chatMessages);
-//   //     } else {
-//   //       setMessages([]);
-//   //     }
-//   //   } catch (error) {
-//   //     console.error("Error fetching chat list:", error);
-//   //   } finally {
-//   //     setIsLoading(false);
-//   //   }
-//   // };
+//   };
 
 //   const handleTabChange = (tab) => {
 //     setActiveTab(tab);
@@ -321,66 +255,175 @@
 
 //       const result = await res.json();
 //       setChatHistory(result?.chathistory || []);
-//       console.log(result?.chathistory);
+//       console.log("resultchathistory", result?.chathistory);
 //     } catch (error) {
 //       console.error("Error fetching chat history:", error);
+//     }
+//   };
+
+//   // New function to fetch group messages
+//   const fetchGroupMessages = async (groupId) => {
+//     try {
+//       const myHeaders = new Headers();
+//       myHeaders.append("Content-Type", "application/json");
+
+//       const raw = JSON.stringify({
+//         groupId: groupId,
+//         sender: userData.user_phone,
+//       });
+
+//       const requestOptions = {
+//         method: "POST",
+//         headers: myHeaders,
+//         body: raw,
+//       };
+
+//       const response = await fetch(
+//         "http://35.154.10.237:5000/api/group/getGroupmessages",
+//         requestOptions
+//       );
+//       const result = await response.json();
+
+//       console.log("Group messages response:", result);
+
+//       // FIXED: Check the actual API response structure
+//       if (response.ok && result.messages) {
+//         // Format the messages to match the existing chat history format
+//         const formattedMessages = result.messages.map((msg) => ({
+//           content: msg.content,
+//           senderMobile: msg.sender,
+//           createdAt: msg.createdAt,
+//           messageType: msg.messageType,
+//         }));
+
+//         setChatHistory(formattedMessages);
+//       } else {
+//         console.error(
+//           "Failed to fetch group messages:",
+//           result.message || "Unknown error"
+//         );
+//         setChatHistory([]);
+//       }
+//     } catch (error) {
+//       console.error("Error fetching group messages:", error);
+//       setChatHistory([]);
 //     }
 //   };
 
 //   const handleSendMessage = async () => {
 //     if (!newMessage.trim() || !selectedUser) return;
 
-//     let finalChatId = chatId;
-//     if (!finalChatId) {
-//       await createOrGetChatRoom(selectedUser);
-//       finalChatId = chatId;
+//     // For individual chats
+//     if (chatType === "individual") {
+//       let finalChatId = chatId;
+//       if (!finalChatId) {
+//         await createOrGetChatRoom(selectedUser);
+//         finalChatId = chatId;
+//       }
+
+//       const messageData = {
+//         chatId: finalChatId,
+//         content: newMessage.trim(),
+//         senderMobile: userData.user_phone,
+//       };
+
+//       try {
+//         setChatHistory((prev) => [
+//           ...prev,
+//           {
+//             chatId: finalChatId,
+//             content: newMessage.trim(),
+//             senderMobile: userData.user_phone,
+//             createdAt: new Date().toISOString(),
+//           },
+//         ]);
+
+//         socketRef.current.emit("sendMessage", messageData);
+
+//         const res = await fetch(`${SOCKET_SERVER}/api/chat/instant-message`, {
+//           method: "POST",
+//           headers: {
+//             "Content-Type": "application/json",
+//           },
+//           body: JSON.stringify(messageData),
+//         });
+
+//         const saved = await res.json();
+//         console.log("objectsaved", saved);
+//         setNewMessage("");
+//       } catch (error) {
+//         console.error("Error sending message:", error);
+//       }
 //     }
-
-//     const messageData = {
-//       chatId: finalChatId,
-//       content: newMessage.trim(),
-//       senderMobile: userData.user_phone,
-//     };
-
-//     try {
-//       setChatHistory((prev) => [
-//         ...prev,
-//         {
-//           chatId: finalChatId,
+//     // For group chats
+//     else if (chatType === "group") {
+//       try {
+//         const messageData = {
+//           groupId: selectedUser.id,
+//           sender: userData.user_phone,
 //           content: newMessage.trim(),
-//           senderMobile: userData.user_phone,
-//         },
-//       ]);
+//           messageType: "text",
+//           senderName: userData.user_name,
+//           createdAt: new Date().toISOString()
+//         };
 
-//       socketRef.current.emit("sendMessage", messageData);
+//         // Add message to UI immediately
+//         setChatHistory((prev) => [...prev, messageData]);
+        
+//         // Emit through socket for real-time updates
+//         socketRef.current.emit("sendGroupMessage", messageData);
 
-//       const res = await fetch(`${SOCKET_SERVER}/api/chat/instant-message`, {
-//         method: "POST",
-//         headers: {
-//           "Content-Type": "application/json",
-//         },
-//         body: JSON.stringify(messageData),
-//       });
+//         // Send to server for persistence
+//         const response = await fetch(
+//           "http://35.154.10.237:5000/api/group/sendMessage",
+//           {
+//             method: "POST",
+//             headers: {
+//               "Content-Type": "application/json",
+//             },
+//             body: JSON.stringify(messageData),
+//           }
+//         );
+        
+//         const result = await response.json();
+//         console.log("Send group message response:", result);
 
-//       const saved = await res.json();
-//       console.log("objectsaved", saved);
-//       setNewMessage("");
-//     } catch (error) {
-//       console.error("Error sending message:", error);
+//         if (response.ok) {
+//           setNewMessage("");
+//         } else {
+//           console.error("Failed to send group message:", result.message);
+//           // Remove the message from UI if sending failed
+//           setChatHistory((prev) => prev.slice(0, -1));
+//         }
+//       } catch (error) {
+//         console.error("Error sending group message:", error);
+//         // Remove the message from UI if sending failed
+//         setChatHistory((prev) => prev.slice(0, -1));
+//       }
 //     }
 //   };
 
 //   const handleContactClick = (contact) => {
 //     setSelectedUser(contact);
-//     if (contact.chatId) {
-//       setChatId(contact.chatId);
-//       socketRef.current.emit("joinRoom", {
-//         chatId: contact.chatId,
-//         userId: userData.user_phone,
-//       });
-//       fetchChatHistory(contact.chatId, contact.mobile);
-//     } else {
-//       createOrGetChatRoom(contact);
+//     setChatType(contact.type); // Set the chat type based on the contact
+
+//     if (contact.type === "individual") {
+//       // Individual chat logic
+//       if (contact.chatId) {
+//         setChatId(contact.chatId);
+//         socketRef.current.emit("joinRoom", {
+//           chatId: contact.chatId,
+//           userId: userData.user_phone,
+//         });
+//         fetchChatHistory(contact.chatId, contact.mobile);
+//       } else {
+//         createOrGetChatRoom(contact);
+//       }
+//     } else if (contact.type === "group") {
+//       // Join group room
+//       socketRef.current.emit("joinGroup", contact.id);
+//       // Group chat logic - fetch group messages
+//       fetchGroupMessages(contact.id);
 //     }
 //   };
 
@@ -394,9 +437,7 @@
 
 //   const handleContentTypeChange = (type) => {
 //     setContentTypes((prev) =>
-//       prev.includes(type)
-//         ? prev.filter((t) => t !== type)
-//         : [...prev, type]
+//       prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
 //     );
 //   };
 
@@ -421,14 +462,15 @@
 //       if (contentTypes.includes("text")) apiContentTypes.push("text");
 //       if (contentTypes.includes("documents")) apiContentTypes.push("documents");
 //       if (contentTypes.includes("media")) apiContentTypes.push("media");
-//       if (contentTypes.includes("attachments")) apiContentTypes.push("attachments");
+//       if (contentTypes.includes("attachments"))
+//         apiContentTypes.push("attachments");
 
 //       const raw = JSON.stringify({
 //         title: groupName.trim(),
 //         participants: participants,
 //         autoDelete: autoDelete,
 //         autoDeleteAt: autoDelete ? autoDeleteAt : "2025-08-31T12:00:00.000Z",
-//         contentTypes: apiContentTypes.length > 0 ? apiContentTypes : ["text"]
+//         contentTypes: apiContentTypes.length > 0 ? apiContentTypes : ["text"],
 //       });
 
 //       console.log("Sending group creation request:", raw);
@@ -482,69 +524,75 @@
 //     <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50">
 //       {/* Header */}
 //       <div className="flex items-center justify-between p-4 bg-white border-b shadow-sm">
-//         <div className="flex items-center gap-4">
-//           <div
-//             className="w-10 h-10 rounded-full text-white flex items-center justify-center font-bold text-xl"
-//             style={{ backgroundColor: avatarColors.purple }}
-//           >
-//             {userData.user_name.charAt(0).toUpperCase()}
-//           </div>
-//           <div>
-//             <p className="font-semibold">{userData.user_name}</p>
-//             <p className="text-xs text-gray-500">{userData.user_phone}</p>
-//           </div>
-//         </div>
-
-//         <div className="relative w-1/3">
-//           <input
-//             type="text"
-//             placeholder="Search messages or contacts..."
-//             className="pl-10 pr-3 py-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-gray-50 w-full"
-//           />
-//           <Search className="absolute left-3 top-2.5 text-gray-400" size={20} />
-//         </div>
-
-//         {/* Plus Button and Settings Button */}
-//         <div className="flex items-center gap-2">
-//           <button
-//             onClick={handlePlusButtonClick}
-//             className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors"
-//           >
-//             <Plus className="w-4 h-4 text-white" />
-//           </button>
-
-//           {/* Settings Button */}
-//           <div className="relative" ref={settingsDropdownRef}>
-//             <button
-//               onClick={() => setShowSettingsDropdown(!showSettingsDropdown)}
-//               className="p-2 rounded-full hover:bg-gray-100"
+//         {/* Header (Fixed) */}
+//         <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between mb-3 bg-white border-b shadow-sm">
+//           <div className="flex items-center gap-4">
+//             <div
+//               className="w-10 h-10 rounded-full text-white flex items-center justify-center font-bold text-xl"
+//               style={{ backgroundColor: avatarColors.purple }}
 //             >
-//               <Settings className="text-gray-600" size={24} />
+//               {userData.user_name.charAt(0).toUpperCase()}
+//             </div>
+//             <div>
+//               <p className="font-semibold">{userData.user_name}</p>
+//               <p className="text-xs text-gray-500">{userData.user_phone}</p>
+//             </div>
+//           </div>
+
+//           <div className="relative w-1/3">
+//             <input
+//               type="text"
+//               placeholder="Search messages or contacts..."
+//               className="pl-10 pr-3 py-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-gray-50 w-full"
+//             />
+//             <Search
+//               className="absolute left-3 top-2.5 text-gray-400"
+//               size={20}
+//             />
+//           </div>
+
+//           {/* Plus Button and Settings Button */}
+//           <div className="flex items-center gap-2">
+//             <button
+//               onClick={handlePlusButtonClick}
+//               className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors"
+//             >
+//               <Plus className="w-4 h-4 text-white" />
 //             </button>
 
-//             {/* Dropdown Menu */}
-//             {showSettingsDropdown && (
-//               <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
-//                 <div
-//                   className="py-1"
-//                   role="menu"
-//                   aria-orientation="vertical"
-//                   aria-labelledby="options-menu"
-//                 >
-//                   <button
-//                     onClick={() => {
-//                       navigate("/settings");
-//                       setShowSettingsDropdown(false);
-//                     }}
-//                     className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-//                     role="menuitem"
+//             {/* Settings Button */}
+//             <div className="relative" ref={settingsDropdownRef}>
+//               <button
+//                 onClick={() => setShowSettingsDropdown(!showSettingsDropdown)}
+//                 className="p-2 rounded-full hover:bg-gray-100"
+//               >
+//                 <Settings className="text-gray-600" size={24} />
+//               </button>
+
+//               {/* Dropdown Menu */}
+//               {showSettingsDropdown && (
+//                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
+//                   <div
+//                     className="py-1"
+//                     role="menu"
+//                     aria-orientation="vertical"
+//                     aria-labelledby="options-menu"
 //                   >
-//                     <Settings className="mr-2" size={16} />
-//                     Settings
-//                   </button>
+//                     <button
+//                       onClick={() => {
+//                         navigate("/settings");
+//                         setShowSettingsDropdown(false);
+//                       }}
+//                       className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+//                       role="menuitem"
+//                     >
+//                       <Settings className="mr-2" size={16} />
+//                       Settings
+//                     </button>
+//                   </div>
 //                 </div>
-//               </div>
-//             )}
+//               )}
+//             </div>
 //           </div>
 //         </div>
 //       </div>
@@ -553,7 +601,9 @@
 //       {showNewGroupModal && (
 //         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
 //           <div className="bg-white rounded-lg p-6 w-[500px] max-h-[90vh] overflow-y-auto">
-//             <h2 className="text-xl font-semibold mb-6 text-center">New Group</h2>
+//             <h2 className="text-xl font-semibold mb-6 text-center">
+//               New Group
+//             </h2>
 
 //             {/* Search input */}
 //             <div className="relative mb-6">
@@ -562,7 +612,10 @@
 //                 placeholder="Search chats or contacts..."
 //                 className="w-full p-3 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
 //               />
-//               <Search className="absolute left-3 top-3.5 text-gray-400" size={18} />
+//               <Search
+//                 className="absolute left-3 top-3.5 text-gray-400"
+//                 size={18}
+//               />
 //             </div>
 
 //             {/* Group Details */}
@@ -588,8 +641,11 @@
 //                 </label>
 //                 <div className="flex flex-wrap gap-2 mb-2">
 //                   {selectedContacts.length > 0 ? (
-//                     selectedContacts.map(contact => (
-//                       <div key={contact.mobile} className="bg-blue-100 text-blue-800 px-3 py-1.5 rounded-full text-sm flex items-center">
+//                     selectedContacts.map((contact) => (
+//                       <div
+//                         key={contact.mobile}
+//                         className="bg-blue-100 text-blue-800 px-3 py-1.5 rounded-full text-sm flex items-center"
+//                       >
 //                         {contact.name}
 //                         <button
 //                           onClick={() => toggleContactSelection(contact)}
@@ -611,7 +667,9 @@
 //             <div className="border-t border-b border-gray-200 py-6 mb-6">
 //               {/* Auto-Deletion Settings */}
 //               <div className="mb-6">
-//                 <h3 className="font-medium mb-3 text-gray-700">Auto-Deletion Settings</h3>
+//                 <h3 className="font-medium mb-3 text-gray-700">
+//                   Auto-Deletion Settings
+//                 </h3>
 
 //                 <div className="flex items-center mb-2">
 //                   <input
@@ -642,7 +700,9 @@
 
 //               {/* Content Filtering */}
 //               <div>
-//                 <h3 className="font-medium mb-3 text-gray-700">Content Filtering</h3>
+//                 <h3 className="font-medium mb-3 text-gray-700">
+//                   Content Filtering
+//                 </h3>
 
 //                 <div className="grid grid-cols-2 gap-3">
 //                   <div className="flex items-center">
@@ -653,7 +713,10 @@
 //                       onChange={() => handleContentTypeChange("text")}
 //                       className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
 //                     />
-//                     <label htmlFor="textMessages" className="text-gray-700 text-sm">
+//                     <label
+//                       htmlFor="textMessages"
+//                       className="text-gray-700 text-sm"
+//                     >
 //                       Text Messages
 //                     </label>
 //                   </div>
@@ -665,7 +728,10 @@
 //                       onChange={() => handleContentTypeChange("documents")}
 //                       className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
 //                     />
-//                     <label htmlFor="documents" className="text-gray-700 text-sm">
+//                     <label
+//                       htmlFor="documents"
+//                       className="text-gray-700 text-sm"
+//                     >
 //                       Documents (PDFs, Docs)
 //                     </label>
 //                   </div>
@@ -689,7 +755,10 @@
 //                       onChange={() => handleContentTypeChange("attachments")}
 //                       className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
 //                     />
-//                     <label htmlFor="attachments" className="text-gray-700 text-sm">
+//                     <label
+//                       htmlFor="attachments"
+//                       className="text-gray-700 text-sm"
+//                     >
 //                       Other Attachments
 //                     </label>
 //                   </div>
@@ -705,7 +774,12 @@
 //                   setGroupName("");
 //                   setSelectedContacts([]);
 //                   setAutoDelete(false);
-//                   setContentTypes(["text", "documents", "media", "attachments"]);
+//                   setContentTypes([
+//                     "text",
+//                     "documents",
+//                     "media",
+//                     "attachments",
+//                   ]);
 //                 }}
 //                 className="text-gray-500 font-medium hover:text-gray-700"
 //               >
@@ -733,20 +807,28 @@
 
 //             {/* Contacts List */}
 //             <div className="mt-6">
-//               <h3 className="font-medium mb-3 text-gray-700">Select Contacts</h3>
+//               <h3 className="font-medium mb-3 text-gray-700">
+//                 Select Contacts
+//               </h3>
 //               <div className="max-h-60 overflow-y-auto border rounded-lg">
 //                 {allContacts.length > 0 ? (
 //                   allContacts.map((contact) => (
 //                     <div
 //                       key={contact.mobile}
 //                       className={`flex items-center p-3 hover:bg-gray-50 cursor-pointer border-b ${
-//                         selectedContacts.some(c => c.mobile === contact.mobile) ? 'bg-blue-50' : ''
+//                         selectedContacts.some(
+//                           (c) => c.mobile === contact.mobile
+//                         )
+//                           ? "bg-blue-50"
+//                           : ""
 //                       }`}
 //                       onClick={() => toggleContactSelection(contact)}
 //                     >
 //                       <input
 //                         type="checkbox"
-//                         checked={selectedContacts.some(c => c.mobile === contact.mobile)}
+//                         checked={selectedContacts.some(
+//                           (c) => c.mobile === contact.mobile
+//                         )}
 //                         readOnly
 //                         className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
 //                       />
@@ -758,7 +840,9 @@
 //                       </div>
 //                       <div>
 //                         <p className="font-medium">{contact.name}</p>
-//                         <p className="text-sm text-gray-500">{contact.mobile}</p>
+//                         <p className="text-sm text-gray-500">
+//                           {contact.mobile}
+//                         </p>
 //                       </div>
 //                     </div>
 //                   ))
@@ -775,11 +859,6 @@
 //                 )}
 //               </div>
 //             </div>
-
-//             {/* Footer note */}
-//             {/* <div className="mt-6 text-center text-xs text-gray-500">
-//               Made with <span className="font-semibold">Tisily</span>
-//             </div> */}
 //           </div>
 //         </div>
 //       )}
@@ -817,7 +896,7 @@
 //                   key={index}
 //                   onClick={() => handleContactClick(msg)}
 //                   className={`flex items-center gap-3 p-3 cursor-pointer border-b hover:bg-blue-50 ${
-//                     selectedUser?.mobile === msg.mobile ? "bg-blue-100" : ""
+//                     selectedUser?.id === msg.id ? "bg-blue-100" : ""
 //                   }`}
 //                 >
 //                   <div
@@ -829,7 +908,12 @@
 //                   <div className="flex-1 min-w-0">
 //                     <div className="flex justify-between items-center">
 //                       <p className="font-semibold truncate">{msg.name}</p>
-//                       <span className="text-xs text-gray-400">24m ago</span>
+//                       {msg.type === "group" && (
+//                         <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+//                           Group
+//                         </span>
+//                       )}
+//                       {/* <span className="text-xs text-gray-400">24m ago</span> */}
 //                     </div>
 //                     <p className="text-sm text-gray-500 truncate">{msg.text}</p>
 //                   </div>
@@ -860,14 +944,25 @@
 //               <div className="p-4 bg-white border-b flex items-center gap-3">
 //                 <div
 //                   className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
-//                   style={{ backgroundColor: avatarColors.green }}
+//                   style={{
+//                     backgroundColor:
+//                       chatType === "group"
+//                         ? avatarColors.blue
+//                         : avatarColors.green,
+//                   }}
 //                 >
 //                   {selectedUser.name.charAt(0).toUpperCase()}
 //                 </div>
 //                 <div>
 //                   <p className="font-semibold">{selectedUser.name}</p>
 //                   <p className="text-xs text-gray-500">
-//                     {socketConnected ? "Online" : "Offline"}
+//                     {chatType === "group"
+//                       ? "Group • " +
+//                         (selectedUser.participants?.length || 0) +
+//                         " members"
+//                       : socketConnected
+//                       ? "Online"
+//                       : "Offline"}
 //                   </p>
 //                 </div>
 //               </div>
@@ -879,13 +974,15 @@
 //                     <div
 //                       key={idx}
 //                       className={`flex ${
-//                         chat.senderMobile === userData.user_phone
+//                         chat.senderMobile === userData.user_phone ||
+//                         chat.sender === userData.user_phone
 //                           ? "justify-end"
 //                           : "justify-start"
 //                       }`}
 //                     >
 //                       <div
 //                         className={`max-w-xs p-3 rounded-lg break-words ${
+//                           chat.senderMobile === userData.user_phone ||
 //                           chat.sender === userData.user_phone
 //                             ? "bg-blue-600 text-white"
 //                             : "bg-gray-200 text-gray-800"
@@ -951,6 +1048,9 @@
 
 // export default ChatPage;
 
+
+
+
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Search, Settings, PlusCircle, Plus } from "lucide-react";
@@ -1007,89 +1107,190 @@ const ChatPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-//   useEffect(() => {
-//   socketRef.current = io(SOCKET_SERVER, {
-//     transports: ["websocket"],
-//     reconnection: true,
-//     reconnectionAttempts: 5,
-//     reconnectionDelay: 1000,
-//     query: {
-//       callerId: userData.user_phone,   // ✅ backend expects callerId
-//     },
-//   });
+  // Initialize socket once
+useEffect(() => {
+  socketRef.current = io(SOCKET_SERVER, {
+    transports: ["websocket"],
+    reconnection: true,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000,
+    query: { callerId: userData.user_phone },
+  });
 
-//   socketRef.current.on("connect", () => {
-//     console.log("Socket connected:", socketRef.current.id);
-//     setSocketConnected(true);
-//     // ✅ backend listens for joinRoom
-//     socketRef.current.emit("joinRoom", chatId);
-//   });
+  socketRef.current.on("connect", () => {
+    console.log("✅ Socket connected:", socketRef.current.id);
+    setSocketConnected(true);
+  });
 
-//   socketRef.current.on("connect_error", (err) => {
-//     console.error("Socket connection error:", err);
-//     setSocketConnected(false);
-//   });
+  socketRef.current.on("connect_error", (err) => {
+    console.error("❌ Socket connection error:", err);
+    setSocketConnected(false);
+  });
 
-//   socketRef.current.on("disconnect", () => {
-//     console.log("Socket disconnected");
-//     setSocketConnected(false);
-//   });
+  socketRef.current.on("disconnect", () => {
+    console.log("⚠️ Socket disconnected");
+    setSocketConnected(false);
+  });
 
-//   // ✅ backend emits chatMessage
-//   socketRef.current.on("chatMessage", (msg) => {
-//     if (msg.chatId === chatId) {
-//       setChatHistory((prev) => [...prev, msg]);
-//     }
-//   });
+  return () => {
+    socketRef.current.disconnect();
+  };
+}, [userData.user_phone]);
 
-//   return () => {
-//     if (socketRef.current) {
-//       socketRef.current.disconnect();
-//     }
-//   };
-// }, [userData.user_phone, chatId]);
+// Listen for messages
+useEffect(() => {
+  if (!socketRef.current) return;
+
+  const handleChatMessage = (msg) => {
+    if (msg.chatId === chatId && msg.senderMobile !== userData.user_phone) {
+      setChatHistory((prev) => [...prev, msg]);
+    }
+  };
+
+  const handleGroupMessage = (msg) => {
+    if (msg.groupId === selectedUser?.id) {
+      setChatHistory((prev) => [...prev, msg]);
+    }
+  };
+
+  socketRef.current.on("chatMessage", handleChatMessage);
+  socketRef.current.on("groupMessage", handleGroupMessage);
+
+  return () => {
+    socketRef.current.off("chatMessage", handleChatMessage);
+    socketRef.current.off("groupMessage", handleGroupMessage);
+  };
+}, [chatId, selectedUser?.id]);
+
+// Join rooms when chat changes
+useEffect(() => {
+  if (!socketRef.current) return;
+
+  if (chatId && chatType === "individual") {
+    socketRef.current.emit("joinRoom", chatId);
+  }
+  if (selectedUser?.id && chatType === "group") {
+    socketRef.current.emit("joinGroupRoom", selectedUser.id);
+  }
+}, [chatId, selectedUser?.id, chatType]);
 
 
-  useEffect(() => {
-    socketRef.current = io(SOCKET_SERVER, {
-      transports: ["websocket"],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      query: {
-        callerId: userData.user_phone,
-      },
-    });
+  // useEffect(() => {
+  //   // Create socket connection
+  //   socketRef.current = io(SOCKET_SERVER, {
+  //     transports: ["websocket"],
+  //     reconnection: true,
+  //     reconnectionAttempts: 5,
+  //     reconnectionDelay: 1000,
+  //     query: {
+  //       callerId: userData.user_phone,
+  //     },
+  //   });
 
-    socketRef.current.on("connect", () => {
-      console.log("Socket connected:", socketRef.current.id);
-      setSocketConnected(true);
-      socketRef.current.emit("joinRoom", chatId);
-    });
+  //   socketRef.current.on("connect", () => {
+  //     console.log("Socket connected:", socketRef.current.id);
+  //     setSocketConnected(true);
 
-    socketRef.current.on("connect_error", (err) => {
-      console.error("Socket connection error:", err);
-      setSocketConnected(false);
-    });
+  //     // Join existing rooms if any
+  //     if (chatId && chatType === "individual") {
+  //       socketRef.current.emit("joinRoom", chatId);
+  //     }
 
-    socketRef.current.on("disconnect", () => {
-      console.log("Socket disconnected");
-      setSocketConnected(false);
-    });
+  //     if (selectedUser?.id && chatType === "group") {
+  //       socketRef.current.emit("joinGroupRoom", selectedUser.id);
+  //     }
+  //   });
 
-    // ✅ Listen for messages only from others
-    socketRef.current.on("chatMessage", (msg) => {
-      if (msg.chatId === chatId && msg.senderMobile !== userData.user_phone) {
-        setChatHistory((prev) => [...prev, msg]);
-      }
-    });
+  //   socketRef.current.on("connect_error", (err) => {
+  //     console.error("Socket connection error:", err);
+  //     setSocketConnected(false);
+  //   });
 
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-    };
-  }, [userData.user_phone, chatId]);
+  //   socketRef.current.on("disconnect", () => {
+  //     console.log("Socket disconnected");
+  //     setSocketConnected(false);
+  //   });
+
+  //   // ✅ Clear old listeners first to prevent duplicates
+  //   socketRef.current.off("chatMessage");
+  //   socketRef.current.off("groupMessage");
+
+  //   // Listen for individual messages
+  //   socketRef.current.on("chatMessage", (msg) => {
+  //     if (msg.chatId === chatId && msg.senderMobile !== userData.user_phone) {
+  //       setChatHistory((prev) => [...prev, msg]);
+  //     }
+  //   });
+
+  //   // Listen for group messages
+  //   socketRef.current.on("groupMessage", (msg) => {
+  //     if (msg.groupId === selectedUser?.id) {
+  //       setChatHistory((prev) => [...prev, msg]);
+  //     }
+  //   });
+
+  //   return () => {
+  //     if (socketRef.current) {
+  //       socketRef.current.disconnect();
+  //     }
+  //   };
+  // }, [userData.user_phone, chatId, selectedUser?.id, chatType]);
+
+  // useEffect(() => {
+  //   socketRef.current = io(SOCKET_SERVER, {
+  //     transports: ["websocket"],
+  //     reconnection: true,
+  //     reconnectionAttempts: 5,
+  //     reconnectionDelay: 1000,
+  //     query: {
+  //       callerId: userData.user_phone,
+  //     },
+  //   });
+
+  //   socketRef.current.on("connect", () => {
+  //     console.log("Socket connected:", socketRef.current.id);
+  //     setSocketConnected(true);
+      
+  //     // Join existing rooms if any
+  //     if (chatId && chatType === "individual") {
+  //       socketRef.current.emit("joinRoom", chatId);
+  //     }
+      
+  //     if (selectedUser?.id && chatType === "group") {
+  //       socketRef.current.emit("joinGroupRoom", selectedUser.id);
+  //     }
+  //   });
+
+  //   socketRef.current.on("connect_error", (err) => {
+  //     console.error("Socket connection error:", err);
+  //     setSocketConnected(false);
+  //   });
+
+  //   socketRef.current.on("disconnect", () => {
+  //     console.log("Socket disconnected");
+  //     setSocketConnected(false);
+  //   });
+
+  //   // Listen for individual messages
+  //   socketRef.current.on("chatMessage", (msg) => {
+  //     if (msg.chatId === chatId && msg.senderMobile !== userData.user_phone) {
+  //       setChatHistory((prev) => [...prev, msg]);
+  //     }
+  //   });
+
+  //   // Listen for group messages
+  //   socketRef.current.on("groupMessage", (msg) => {
+  //     if (msg.groupId === selectedUser?.id) {
+  //       setChatHistory((prev) => [...prev, msg]);
+  //     }
+  //   });
+
+  //   return () => {
+  //     if (socketRef.current) {
+  //       socketRef.current.disconnect();
+  //     }
+  //   };
+  // }, [userData.user_phone, chatId, selectedUser, chatType]);
 
   const fetchContacts = async () => {
     setIsLoading(true);
@@ -1217,10 +1418,7 @@ const ChatPage = () => {
       const result = await res.json();
       if (result?.chatId) {
         setChatId(result.chatId);
-        socketRef.current.emit("joinRoom", {
-          chatId: result.chatId,
-          userId: userData.user_phone,
-        });
+        socketRef.current.emit("joinRoom", result.chatId);
         fetchChatHistory(result.chatId, contact.mobile);
       }
     } catch (err) {
@@ -1347,57 +1545,57 @@ const ChatPage = () => {
     // For group chats
     else if (chatType === "group") {
       try {
-        const myHeaders = new Headers();
-        myHeaders.append("Content-Type", "application/json");
-
-        const raw = JSON.stringify({
+        const messageData = {
           groupId: selectedUser.id,
           sender: userData.user_phone,
           content: newMessage.trim(),
           messageType: "text",
-        });
-
-        const requestOptions = {
-          method: "POST",
-          headers: myHeaders,
-          body: raw,
+          senderName: userData.user_name,
         };
 
         // Add message to UI immediately
         setChatHistory((prev) => [
           ...prev,
           {
-            content: newMessage.trim(),
+            groupId: selectedUser.id,
             senderMobile: userData.user_phone,
+            content: newMessage.trim(),
             createdAt: new Date().toISOString(),
-            messageType: "text",
           },
         ]);
+        
+        // Emit through socket for real-time updates
+        socketRef.current.emit("sendGroupMessage", {
+          groupId: selectedUser.id,
+          senderMobile: userData.user_phone,
+          content: newMessage.trim(),
+        });
 
-        // Send message to server
+        // Send to server for persistence
         const response = await fetch(
           "http://35.154.10.237:5000/api/group/sendMessage",
-          requestOptions
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(messageData),
+          }
         );
+        
         const result = await response.json();
-
         console.log("Send group message response:", result);
 
-        // FIXED: Check for success based on the actual API response structure
-        if (response.ok && result.message === "Message sent") {
-          console.log("Group message sent successfully");
+        if (response.ok) {
           setNewMessage("");
         } else {
-          console.error(
-            "Failed to send group message:",
-            result.message || "Unknown error"
-          );
-          // Optionally remove the message from UI if sending failed
+          console.error("Failed to send group message:", result.message);
+          // Remove the message from UI if sending failed
           setChatHistory((prev) => prev.slice(0, -1));
         }
       } catch (error) {
         console.error("Error sending group message:", error);
-        // Optionally remove the message from UI if sending failed
+        // Remove the message from UI if sending failed
         setChatHistory((prev) => prev.slice(0, -1));
       }
     }
@@ -1411,16 +1609,14 @@ const ChatPage = () => {
       // Individual chat logic
       if (contact.chatId) {
         setChatId(contact.chatId);
-        socketRef.current.emit("joinRoom", {
-          chatId: contact.chatId,
-          userId: userData.user_phone,
-        });
+        socketRef.current.emit("joinRoom", contact.chatId);
         fetchChatHistory(contact.chatId, contact.mobile);
       } else {
         createOrGetChatRoom(contact);
       }
     } else if (contact.type === "group") {
-      // Group chat logic - fetch group messages
+      // Group chat logic - join group room and fetch group messages
+      socketRef.current.emit("joinGroupRoom", contact.id);
       fetchGroupMessages(contact.id);
     }
   };
