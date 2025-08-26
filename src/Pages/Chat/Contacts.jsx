@@ -1148,7 +1148,8 @@ useEffect(() => {
   };
 
   const handleGroupMessage = (msg) => {
-    if (msg.groupId === selectedUser?.id) {
+    // ✅ Add filter so your own message isn’t duplicated
+    if (msg.groupId === selectedUser?.id && msg.senderMobile !== userData.user_phone) {
       setChatHistory((prev) => [...prev, msg]);
     }
   };
@@ -1175,122 +1176,6 @@ useEffect(() => {
 }, [chatId, selectedUser?.id, chatType]);
 
 
-  // useEffect(() => {
-  //   // Create socket connection
-  //   socketRef.current = io(SOCKET_SERVER, {
-  //     transports: ["websocket"],
-  //     reconnection: true,
-  //     reconnectionAttempts: 5,
-  //     reconnectionDelay: 1000,
-  //     query: {
-  //       callerId: userData.user_phone,
-  //     },
-  //   });
-
-  //   socketRef.current.on("connect", () => {
-  //     console.log("Socket connected:", socketRef.current.id);
-  //     setSocketConnected(true);
-
-  //     // Join existing rooms if any
-  //     if (chatId && chatType === "individual") {
-  //       socketRef.current.emit("joinRoom", chatId);
-  //     }
-
-  //     if (selectedUser?.id && chatType === "group") {
-  //       socketRef.current.emit("joinGroupRoom", selectedUser.id);
-  //     }
-  //   });
-
-  //   socketRef.current.on("connect_error", (err) => {
-  //     console.error("Socket connection error:", err);
-  //     setSocketConnected(false);
-  //   });
-
-  //   socketRef.current.on("disconnect", () => {
-  //     console.log("Socket disconnected");
-  //     setSocketConnected(false);
-  //   });
-
-  //   // ✅ Clear old listeners first to prevent duplicates
-  //   socketRef.current.off("chatMessage");
-  //   socketRef.current.off("groupMessage");
-
-  //   // Listen for individual messages
-  //   socketRef.current.on("chatMessage", (msg) => {
-  //     if (msg.chatId === chatId && msg.senderMobile !== userData.user_phone) {
-  //       setChatHistory((prev) => [...prev, msg]);
-  //     }
-  //   });
-
-  //   // Listen for group messages
-  //   socketRef.current.on("groupMessage", (msg) => {
-  //     if (msg.groupId === selectedUser?.id) {
-  //       setChatHistory((prev) => [...prev, msg]);
-  //     }
-  //   });
-
-  //   return () => {
-  //     if (socketRef.current) {
-  //       socketRef.current.disconnect();
-  //     }
-  //   };
-  // }, [userData.user_phone, chatId, selectedUser?.id, chatType]);
-
-  // useEffect(() => {
-  //   socketRef.current = io(SOCKET_SERVER, {
-  //     transports: ["websocket"],
-  //     reconnection: true,
-  //     reconnectionAttempts: 5,
-  //     reconnectionDelay: 1000,
-  //     query: {
-  //       callerId: userData.user_phone,
-  //     },
-  //   });
-
-  //   socketRef.current.on("connect", () => {
-  //     console.log("Socket connected:", socketRef.current.id);
-  //     setSocketConnected(true);
-      
-  //     // Join existing rooms if any
-  //     if (chatId && chatType === "individual") {
-  //       socketRef.current.emit("joinRoom", chatId);
-  //     }
-      
-  //     if (selectedUser?.id && chatType === "group") {
-  //       socketRef.current.emit("joinGroupRoom", selectedUser.id);
-  //     }
-  //   });
-
-  //   socketRef.current.on("connect_error", (err) => {
-  //     console.error("Socket connection error:", err);
-  //     setSocketConnected(false);
-  //   });
-
-  //   socketRef.current.on("disconnect", () => {
-  //     console.log("Socket disconnected");
-  //     setSocketConnected(false);
-  //   });
-
-  //   // Listen for individual messages
-  //   socketRef.current.on("chatMessage", (msg) => {
-  //     if (msg.chatId === chatId && msg.senderMobile !== userData.user_phone) {
-  //       setChatHistory((prev) => [...prev, msg]);
-  //     }
-  //   });
-
-  //   // Listen for group messages
-  //   socketRef.current.on("groupMessage", (msg) => {
-  //     if (msg.groupId === selectedUser?.id) {
-  //       setChatHistory((prev) => [...prev, msg]);
-  //     }
-  //   });
-
-  //   return () => {
-  //     if (socketRef.current) {
-  //       socketRef.current.disconnect();
-  //     }
-  //   };
-  // }, [userData.user_phone, chatId, selectedUser, chatType]);
 
   const fetchContacts = async () => {
     setIsLoading(true);
@@ -1498,62 +1383,78 @@ useEffect(() => {
   };
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedUser) return;
+  if (!newMessage.trim() || !selectedUser) return;
 
-    // For individual chats
-    if (chatType === "individual") {
-      let finalChatId = chatId;
-      if (!finalChatId) {
-        await createOrGetChatRoom(selectedUser);
-        finalChatId = chatId;
-      }
+  // 🔹 Individual chat
+  if (chatType === "individual") {
+    let finalChatId = chatId;
+    if (!finalChatId) {
+      await createOrGetChatRoom(selectedUser);
+      finalChatId = chatId;
+    }
 
+    const messageData = {
+      chatId: finalChatId,
+      content: newMessage.trim(),
+      senderMobile: userData.user_phone,
+    };
+
+    try {
+      // Add immediately to UI
+      setChatHistory((prev) => [
+        ...prev,
+        {
+          chatId: finalChatId,
+          content: newMessage.trim(),
+          senderMobile: userData.user_phone,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+
+      socketRef.current.emit("sendMessage", messageData);
+
+      await fetch(`${SOCKET_SERVER}/api/chat/instant-message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(messageData),
+      });
+
+      setNewMessage("");
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
+  }
+
+  // 🔹 Group chat
+  else if (chatType === "group") {
+    try {
       const messageData = {
-        chatId: finalChatId,
+        groupId: selectedUser.id,
+        sender: userData.user_phone,
         content: newMessage.trim(),
-        senderMobile: userData.user_phone,
+        messageType: "text",
+        senderName: userData.user_name,
       };
 
-      try {
-        setChatHistory((prev) => [
-          ...prev,
-          {
-            chatId: finalChatId,
-            content: newMessage.trim(),
-            senderMobile: userData.user_phone,
-            createdAt: new Date().toISOString(),
-          },
-        ]);
+      // Emit through socket
+      socketRef.current.emit("sendGroupMessage", {
+        groupId: selectedUser.id,
+        senderMobile: userData.user_phone,
+        content: newMessage.trim(),
+      });
 
-        socketRef.current.emit("sendMessage", messageData);
+      // Save on server
+      const response = await fetch(`${SOCKET_SERVER}/api/group/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(messageData),
+      });
 
-        const res = await fetch(`${SOCKET_SERVER}/api/chat/instant-message`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(messageData),
-        });
+      const result = await response.json();
+      console.log("Send group message response:", result);
 
-        const saved = await res.json();
-        console.log("objectsaved", saved);
-        setNewMessage("");
-      } catch (error) {
-        console.error("Error sending message:", error);
-      }
-    }
-    // For group chats
-    else if (chatType === "group") {
-      try {
-        const messageData = {
-          groupId: selectedUser.id,
-          sender: userData.user_phone,
-          content: newMessage.trim(),
-          messageType: "text",
-          senderName: userData.user_name,
-        };
-
-        // Add message to UI immediately
+      if (response.ok) {
+        // ✅ Manually add *only once* for sender (avoid duplication)
         setChatHistory((prev) => [
           ...prev,
           {
@@ -1563,43 +1464,117 @@ useEffect(() => {
             createdAt: new Date().toISOString(),
           },
         ]);
-        
-        // Emit through socket for real-time updates
-        socketRef.current.emit("sendGroupMessage", {
-          groupId: selectedUser.id,
-          senderMobile: userData.user_phone,
-          content: newMessage.trim(),
-        });
-
-        // Send to server for persistence
-        const response = await fetch(
-          "http://35.154.10.237:5000/api/group/sendMessage",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(messageData),
-          }
-        );
-        
-        const result = await response.json();
-        console.log("Send group message response:", result);
-
-        if (response.ok) {
-          setNewMessage("");
-        } else {
-          console.error("Failed to send group message:", result.message);
-          // Remove the message from UI if sending failed
-          setChatHistory((prev) => prev.slice(0, -1));
-        }
-      } catch (error) {
-        console.error("Error sending group message:", error);
-        // Remove the message from UI if sending failed
-        setChatHistory((prev) => prev.slice(0, -1));
+        setNewMessage("");
       }
+    } catch (error) {
+      console.error("Error sending group message:", error);
     }
-  };
+  }
+};
+
+  // const handleSendMessage = async () => {
+  //   if (!newMessage.trim() || !selectedUser) return;
+
+  //   // For individual chats
+  //   if (chatType === "individual") {
+  //     let finalChatId = chatId;
+  //     if (!finalChatId) {
+  //       await createOrGetChatRoom(selectedUser);
+  //       finalChatId = chatId;
+  //     }
+
+  //     const messageData = {
+  //       chatId: finalChatId,
+  //       content: newMessage.trim(),
+  //       senderMobile: userData.user_phone,
+  //     };
+
+  //     try {
+  //       setChatHistory((prev) => [
+  //         ...prev,
+  //         {
+  //           chatId: finalChatId,
+  //           content: newMessage.trim(),
+  //           senderMobile: userData.user_phone,
+  //           createdAt: new Date().toISOString(),
+  //         },
+  //       ]);
+
+  //       socketRef.current.emit("sendMessage", messageData);
+
+  //       const res = await fetch(`${SOCKET_SERVER}/api/chat/instant-message`, {
+  //         method: "POST",
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //         },
+  //         body: JSON.stringify(messageData),
+  //       });
+
+  //       const saved = await res.json();
+  //       console.log("objectsaved", saved);
+  //       setNewMessage("");
+  //     } catch (error) {
+  //       console.error("Error sending message:", error);
+  //     }
+  //   }
+  //   // For group chats
+  //   else if (chatType === "group") {
+  //     try {
+  //       const messageData = {
+  //         groupId: selectedUser.id,
+  //         sender: userData.user_phone,
+  //         content: newMessage.trim(),
+  //         messageType: "text",
+  //         senderName: userData.user_name,
+  //       };
+
+  //       // Add message to UI immediately
+  //       setChatHistory((prev) => [
+  //         ...prev,
+  //         {
+  //           groupId: selectedUser.id,
+  //           senderMobile: userData.user_phone,
+  //           content: newMessage.trim(),
+  //           createdAt: new Date().toISOString(),
+  //         },
+  //       ]);
+        
+  //       // Emit through socket for real-time updates
+  //       socketRef.current.emit("sendGroupMessage", {
+  //         groupId: selectedUser.id,
+  //         senderMobile: userData.user_phone,
+  //         content: newMessage.trim(),
+  //       });
+
+  //       // Send to server for persistence
+  //       const response = await fetch(
+  //         "http://35.154.10.237:5000/api/group/sendMessage",
+  //         {
+  //           method: "POST",
+  //           headers: {
+  //             "Content-Type": "application/json",
+  //           },
+  //           body: JSON.stringify(messageData),
+  //         }
+  //       );
+        
+  //       const result = await response.json();
+  //       console.log("Send group message response:", result);
+
+  //       if (response.ok) {
+  //         setNewMessage("");
+  //       } else {
+  //         console.error("Failed to send group message:", result.message);
+  //         // Remove the message from UI if sending failed
+  //         setChatHistory((prev) => prev.slice(0, -1));
+  //       }
+  //     } catch (error) {
+  //       console.error("Error sending group message:", error);
+  //       // Remove the message from UI if sending failed
+  //       setChatHistory((prev) => prev.slice(0, -1));
+  //     }
+  //   }
+  // };
 
   const handleContactClick = (contact) => {
     setSelectedUser(contact);
