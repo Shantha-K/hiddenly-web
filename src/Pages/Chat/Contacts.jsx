@@ -1749,7 +1749,7 @@ useEffect(() => {
                   >
                     <button
                       onClick={() => {
-                        navigate("/settings");
+                        navigate("/NewSetting");
                         setShowSettingsDropdown(false);
                       }}
                       className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
