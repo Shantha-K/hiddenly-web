@@ -19,7 +19,11 @@ const WelcomeChat= lazy(() => import("./Pages/Chat/WelcomeChat"));
 const AuthCallback = lazy(() => import("./Pages/Onboarding/AuthCallback"));
 const Contacts = lazy(() => import("./Pages/Chat/Contacts"));
 const ChatWindow = lazy(() => import("./Pages/Chat/ChatWindow"));
+const NewSetting = lazy(() => import("./Pages/Settings/NewSetting"));
 const GroupContcats = lazy(() => import("./Pages/Chat/GroupContcats"));
+
+
+
 
 
 function App() {
@@ -40,6 +44,7 @@ function App() {
   <Route path="/Contacts" element={<Contacts />} />
    <Route path="/chat/:mobile" element={<ChatWindow />} />
      <Route path="/GroupContcats" element={<GroupContcats />} />
+      <Route path="/NewSetting" element={<NewSetting />} />
    
 </Routes>
       </Suspense>
